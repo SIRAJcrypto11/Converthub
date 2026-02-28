@@ -133,14 +133,14 @@ export default function ToolGrid() {
                         initial={{ opacity: 0, y: 20 }}
                         whileInView={{ opacity: 1, y: 0 }}
                         viewport={{ once: true }}
-                        className="text-4xl font-extrabold mb-4"
+                        className="text-4xl font-extrabold mb-4 text-gray-900"
                     >
                         All{" "}
-                        <span className="bg-gradient-to-r from-blue-400 to-purple-400 bg-clip-text text-transparent">
+                        <span className="bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">
                             Tools
                         </span>
                     </motion.h2>
-                    <p className="text-gray-400 max-w-xl mx-auto">
+                    <p className="text-gray-600 max-w-xl mx-auto">
                         {tools.length} professional tools to handle all your document conversion needs
                     </p>
                 </div>
@@ -155,12 +155,15 @@ export default function ToolGrid() {
                                 "px-5 py-2 rounded-full text-sm font-semibold transition-all duration-200",
                                 activeCategory === cat
                                     ? "bg-gradient-to-r from-blue-600 to-purple-600 text-white shadow-lg shadow-blue-500/30"
-                                    : "bg-gray-800 text-gray-400 hover:text-gray-200 hover:bg-gray-700 border border-gray-700"
+                                    : "bg-white text-gray-600 hover:text-gray-900 hover:bg-gray-50 border border-gray-200 shadow-sm"
                             )}
                         >
                             {cat}
                             {cat !== "All" && (
-                                <span className="ml-2 text-xs opacity-60">
+                                <span className={cn(
+                                    "ml-2 text-xs",
+                                    activeCategory === cat ? "opacity-80" : "opacity-60"
+                                )}>
                                     ({tools.filter((t) => t.category === cat).length})
                                 </span>
                             )}
@@ -185,10 +188,10 @@ export default function ToolGrid() {
                                     className="group relative"
                                 >
                                     <Link href={tool.href}>
-                                        <div className="relative h-full bg-gray-900 border border-gray-800 rounded-2xl p-5 cursor-pointer overflow-hidden transition-all duration-300 group-hover:border-gray-600 group-hover:shadow-xl group-hover:shadow-black/30">
+                                        <div className="relative h-full bg-white border border-gray-200 rounded-2xl p-5 cursor-pointer overflow-hidden transition-all duration-300 group-hover:border-blue-500/50 group-hover:shadow-xl group-hover:shadow-blue-500/10">
                                             {/* Gradient background on hover */}
                                             <div className={cn(
-                                                "absolute inset-0 opacity-0 group-hover:opacity-5 transition-opacity duration-300 bg-gradient-to-br",
+                                                "absolute inset-0 opacity-0 group-hover:opacity-[0.03] transition-opacity duration-300 bg-gradient-to-br",
                                                 tool.color
                                             )} />
 
@@ -197,8 +200,8 @@ export default function ToolGrid() {
                                                 <span className={cn(
                                                     "absolute top-3 right-3 text-[10px] font-bold px-2 py-0.5 rounded-full",
                                                     tool.badge === "NEW"
-                                                        ? "bg-green-500/20 text-green-400 border border-green-500/30"
-                                                        : "bg-orange-500/20 text-orange-400 border border-orange-500/30"
+                                                        ? "bg-green-100 text-green-700 border border-green-200"
+                                                        : "bg-orange-100 text-orange-700 border border-orange-200"
                                                 )}>
                                                     {tool.badge}
                                                 </span>
@@ -206,14 +209,14 @@ export default function ToolGrid() {
 
                                             {/* Icon */}
                                             <div className={cn(
-                                                "w-12 h-12 rounded-xl flex items-center justify-center mb-4 bg-gradient-to-br",
+                                                "w-12 h-12 rounded-xl flex items-center justify-center mb-4 bg-gradient-to-br shadow-inner",
                                                 tool.color
                                             )}>
                                                 <Icon className="w-6 h-6 text-white" />
                                             </div>
 
                                             {/* Content */}
-                                            <h3 className="font-bold text-gray-100 mb-1 group-hover:text-white transition-colors">
+                                            <h3 className="font-bold text-gray-900 mb-1 group-hover:text-blue-600 transition-colors">
                                                 {tool.title}
                                             </h3>
                                             <p className="text-gray-500 text-sm leading-relaxed line-clamp-2">
@@ -222,7 +225,7 @@ export default function ToolGrid() {
 
                                             {/* Category Tag */}
                                             <div className="mt-4">
-                                                <span className="text-xs text-gray-600 bg-gray-800 px-2 py-1 rounded-md">
+                                                <span className="text-xs text-gray-600 bg-gray-100 px-2.5 py-1 rounded-md font-medium border border-gray-200/60">
                                                     {tool.category}
                                                 </span>
                                             </div>
