@@ -1,17 +1,35 @@
 "use client";
 
 import { useState } from "react";
-import { Document, Packer, Paragraph, TextRun } from "docx";
-
 import { motion } from "framer-motion";
-import { FileDown, Download, Plus, X, File as FileIcon, Loader2, AlertCircle, FileText, CheckCircle2 } from "lucide-react";
+import {
+    FileDown, Plus, X, File as FileIcon, Loader2,
+    AlertCircle, FileText, CheckCircle2, BookOpen, Search, Cog
+} from "lucide-react";
 import { useDropzone } from "react-dropzone";
 import { cn } from "@/lib/utils";
+import { convertPdfToDocx, type ConversionProgress } from "@/lib/pdf-to-word-engine";
+
+const stageIcons: Record<ConversionProgress["stage"], React.ReactNode> = {
+    reading: <BookOpen className="w-4 h-4" />,
+    analyzing: <Search className="w-4 h-4" />,
+    building: <Cog className="w-4 h-4 animate-spin" />,
+    complete: <CheckCircle2 className="w-4 h-4" />,
+};
+
+const stageLabels: Record<ConversionProgress["stage"], string> = {
+    reading: "Reading PDF",
+    analyzing: "Analyzing Layout",
+    building: "Building Word Document",
+    complete: "Complete",
+};
 
 export default function PdfToWordPage() {
     const [file, setFile] = useState<File | null>(null);
     const [isConverting, setIsConverting] = useState(false);
-    const [progress, setProgress] = useState(0);
+    const [progress, setProgress] = useState<ConversionProgress>({
+        stage: "reading", percent: 0, message: "",
+    });
     const [error, setError] = useState<string | null>(null);
     const [success, setSuccess] = useState(false);
 
@@ -20,14 +38,14 @@ export default function PdfToWordPage() {
             setFile(acceptedFiles[0]);
             setError(null);
             setSuccess(false);
-            setProgress(0);
+            setProgress({ stage: "reading", percent: 0, message: "" });
         }
     };
 
     const { getRootProps, getInputProps, isDragActive } = useDropzone({
         onDrop,
-        accept: { 'application/pdf': ['.pdf'] },
-        multiple: false
+        accept: { "application/pdf": [".pdf"] },
+        multiple: false,
     });
 
     const convertToWord = async () => {
@@ -35,71 +53,28 @@ export default function PdfToWordPage() {
 
         setIsConverting(true);
         setError(null);
-        setProgress(0);
+        setSuccess(false);
 
         try {
-            const pdfjs = await import("pdfjs-dist");
-            if (!pdfjs.GlobalWorkerOptions.workerSrc) {
-                pdfjs.GlobalWorkerOptions.workerSrc = `//unpkg.com/pdfjs-dist@${pdfjs.version}/build/pdf.worker.min.mjs`;
-            }
-
-            const arrayBuffer = await file.arrayBuffer();
-            const loadingTask = pdfjs.getDocument({ data: arrayBuffer });
-            const pdf = await loadingTask.promise;
-            const numPages = pdf.numPages;
-
-            const docChildren: any[] = [];
-
-            for (let i = 1; i <= numPages; i++) {
-                const page = await pdf.getPage(i);
-                const textContent = await page.getTextContent();
-
-                const pageText = textContent.items
-                    .map((item: any) => item.str)
-                    .join(" ");
-
-                // Create paragraphs for each page
-                docChildren.push(
-                    new Paragraph({
-                        children: [
-                            new TextRun({
-                                text: `[Page ${i}]`,
-                                bold: true,
-                                color: "2D7FF9",
-                            }),
-                        ],
-                    }),
-                    new Paragraph({
-                        children: [
-                            new TextRun({
-                                text: pageText,
-                                size: 24, // 12pt
-                            }),
-                        ],
-                        spacing: {
-                            after: 200,
-                        },
-                    })
-                );
-
-                setProgress(Math.round((i / numPages) * 100));
-            }
-
-            const doc = new Document({
-                sections: [{
-                    children: docChildren,
-                }],
+            const blob = await convertPdfToDocx(file, (p) => {
+                setProgress(p);
             });
 
-            const blob = await Packer.toBlob(doc);
-            const filename = `${file.name.replace(".pdf", "")}.docx`;
+            const filename = `${file.name.replace(/\.pdf$/i, "")}.docx`;
             const { downloadBlob } = await import("@/lib/download");
             downloadBlob(blob, filename);
 
             setSuccess(true);
-        } catch (err) {
+        } catch (err: any) {
             console.error("Conversion failed:", err);
-            setError("Failed to convert PDF to Word. The file might be protected or too complex.");
+            const message = err?.message || "";
+            if (message.includes("password") || message.includes("encrypted")) {
+                setError("This PDF is password-protected. Please unlock it first using our Unlock PDF tool.");
+            } else if (message.includes("Invalid PDF")) {
+                setError("This file appears to be corrupted or is not a valid PDF.");
+            } else {
+                setError("Failed to convert PDF to Word. The file might be protected, corrupted, or too complex.");
+            }
         } finally {
             setIsConverting(false);
         }
@@ -137,7 +112,7 @@ export default function PdfToWordPage() {
                         animate={{ opacity: 1, scale: 1 }}
                         className="bg-white border border-[#DADCE0] rounded-[3rem] p-12 shadow-2xl space-y-8 relative overflow-hidden"
                     >
-                        <button onClick={() => setFile(null)} className="absolute top-8 right-8 p-3 hover:bg-red-50 text-red-500 rounded-2xl transition-colors">
+                        <button onClick={() => { setFile(null); setError(null); setSuccess(false); }} className="absolute top-8 right-8 p-3 hover:bg-red-50 text-red-500 rounded-2xl transition-colors">
                             <X className="w-6 h-6" />
                         </button>
 
@@ -151,20 +126,25 @@ export default function PdfToWordPage() {
                             </div>
                         </div>
 
+                        {/* Multi-Stage Progress */}
                         {isConverting && (
-                            <div className="space-y-3">
-                                <div className="flex justify-between text-xs font-black uppercase tracking-widest text-blue-600">
-                                    <span>Reconstructing Document...</span>
-                                    <span>{progress}%</span>
+                            <div className="space-y-4">
+                                <div className="flex justify-between items-center">
+                                    <div className="flex items-center gap-2 text-xs font-black uppercase tracking-widest text-blue-600">
+                                        {stageIcons[progress.stage]}
+                                        <span>{stageLabels[progress.stage]}</span>
+                                    </div>
+                                    <span className="text-xs font-black text-blue-600">{progress.percent}%</span>
                                 </div>
                                 <div className="w-full bg-blue-50 h-4 rounded-full overflow-hidden border border-blue-100">
                                     <motion.div
-                                        className="bg-blue-600 h-full"
+                                        className="bg-gradient-to-r from-blue-500 to-blue-600 h-full rounded-full"
                                         initial={{ width: 0 }}
-                                        animate={{ width: `${progress}%` }}
+                                        animate={{ width: `${progress.percent}%` }}
                                         transition={{ duration: 0.3 }}
                                     />
                                 </div>
+                                <p className="text-xs text-[#5F6368] font-medium">{progress.message}</p>
                             </div>
                         )}
 
@@ -177,16 +157,20 @@ export default function PdfToWordPage() {
                                 <CheckCircle2 className="w-8 h-8 flex-shrink-0" />
                                 <div>
                                     <p className="text-lg">Conversion Complete!</p>
-                                    <p className="text-sm font-medium opacity-80">Your editable Word file has been downloaded.</p>
+                                    <p className="text-sm font-medium opacity-80">Your editable Word file has been downloaded with formatting preserved.</p>
                                 </div>
                             </motion.div>
                         )}
 
                         {error && (
-                            <div className="bg-red-50 border border-red-100 text-red-600 p-6 rounded-[2rem] flex items-center gap-4 font-bold italic">
-                                <AlertCircle className="w-8 h-8" />
+                            <motion.div
+                                initial={{ opacity: 0, y: 10 }}
+                                animate={{ opacity: 1, y: 0 }}
+                                className="bg-red-50 border border-red-100 text-red-600 p-6 rounded-[2rem] flex items-center gap-4 font-bold italic"
+                            >
+                                <AlertCircle className="w-8 h-8 flex-shrink-0" />
                                 <p>{error}</p>
-                            </div>
+                            </motion.div>
                         )}
 
                         <button
@@ -199,7 +183,7 @@ export default function PdfToWordPage() {
                         </button>
 
                         <p className="text-xs text-[#5F6368] text-center font-medium italic px-10">
-                            ConvertHub extracts structural elements and text encoding to provide the cleanest Word output possible in-browser.
+                            ConvertHub reconstructs your PDF's layout — preserving paragraphs, headings, bold, italic, and font sizes — for the cleanest Word output possible.
                         </p>
                     </motion.div>
                 )}
