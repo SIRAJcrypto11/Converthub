@@ -151,8 +151,9 @@ ConvertHub represents a standard of engineering excellence, built with precision
 
 ## 📜 Legal & Licensing
 
-ConvertHub is distributed under the permissive **[MIT License](LICENSE)**. 
-You are fundamentally free to modify, distribute, copy, and commercially extract value from this software stack, provided you include the original copyright notice in all copies or substantial uses.
+ConvertHub and its source code are **Proprietary and Confidential**, copyright &copy; 2026 ConvertHub / SNISHOP.ID. **All Rights Reserved.**
+
+This software is **NOT** open-source. You may not copy, duplicate, distribute, modify, or commercially extract value from this code without explicit prior written authorization.
 
 <p align="center">
   <br />
