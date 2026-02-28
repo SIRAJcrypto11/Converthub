@@ -3,295 +3,219 @@
 import { useSession } from "next-auth/react";
 import { motion } from "framer-motion";
 import {
-    FileText,
-    Clock,
-    Settings,
-    CreditCard,
-    BarChart3,
-    Rocket,
-    ShieldCheck,
-    Zap,
-    Users,
-    Database,
-    ShieldAlert,
-    ArrowRightLeft,
-    DollarSign
+    FileText, Clock, Settings, Zap, Users, BarChart3,
+    ArrowRight, Download, Layers, Scissors, Minimize2,
+    Lock, Globe, CheckCircle2, XCircle, AlertCircle
 } from "lucide-react";
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 
+const quickActions = [
+    { label: "PDF to Word", href: "/tools/pdf-to-word", icon: FileText, color: "from-blue-500 to-blue-700" },
+    { label: "Merge PDF", href: "/tools/merge-pdf", icon: Layers, color: "from-green-500 to-green-700" },
+    { label: "Compress PDF", href: "/tools/compress-pdf", icon: Minimize2, color: "from-yellow-500 to-yellow-700" },
+    { label: "Split PDF", href: "/tools/split-pdf", icon: Scissors, color: "from-orange-500 to-orange-700" },
+    { label: "Protect PDF", href: "/tools/protect-pdf", icon: Lock, color: "from-red-500 to-red-700" },
+    { label: "Web to PDF", href: "/tools/web-to-pdf", icon: Globe, color: "from-sky-500 to-sky-700" },
+];
+
+const mockHistory = [
+    { id: 1, filename: "Report_Q4_2025.pdf", tool: "Compress PDF", date: "27 Feb 2026", size: "2.4 MB", status: "success" },
+    { id: 2, filename: "Contract_Draft.docx", tool: "Word to PDF", date: "26 Feb 2026", size: "856 KB", status: "success" },
+    { id: 3, filename: "Invoice_Jan.pdf", tool: "PDF to Word", date: "26 Feb 2026", size: "1.1 MB", status: "success" },
+    { id: 4, filename: "Presentation.pdf", tool: "Split PDF", date: "25 Feb 2026", size: "5.2 MB", status: "failed" },
+    { id: 5, filename: "Scanned_Doc.pdf", tool: "OCR PDF", date: "25 Feb 2026", size: "3.7 MB", status: "success" },
+    { id: 6, filename: "merged_output.pdf", tool: "Merge PDF", date: "24 Feb 2026", size: "7.8 MB", status: "success" },
+];
+
+const statCards = [
+    { label: "Total Conversions", value: "248", icon: BarChart3, change: "+12 this week", color: "text-blue-400" },
+    { label: "Files Processed", value: "1.2 GB", icon: FileText, change: "+340 MB today", color: "text-purple-400" },
+    { label: "Success Rate", value: "97.5%", icon: CheckCircle2, change: "Excellent", color: "text-green-400" },
+    { label: "Tools Used", value: "11", icon: Zap, change: "out of 17", color: "text-orange-400" },
+];
+
 export default function DashboardPage() {
     const { data: session, status } = useSession();
     const router = useRouter();
-    const [transactions, setTransactions] = useState<any[]>([]);
-    const [stats, setStats] = useState({ users: "12,482", revenue: "$0", load: "24%" });
-    const [isLoading, setIsLoading] = useState(true);
+    const [activeTab, setActiveTab] = useState("overview");
 
     useEffect(() => {
-        if (status === "unauthenticated") {
-            router.push("/login");
-        }
+        if (status === "unauthenticated") router.push("/login");
     }, [status, router]);
-
-    const fetchDashboardData = async () => {
-        try {
-            const txRes = await fetch("/api/transactions");
-            const txData = await txRes.json();
-            if (Array.isArray(txData)) {
-                setTransactions(txData);
-
-                if (session?.user?.role === "OWNER" || session?.user?.role === "ADMIN") {
-                    const totalRevenue = txData
-                        .filter((t: any) => t.status === "SUCCESS")
-                        .reduce((acc: number, t: any) => acc + t.amount, 0);
-
-                    setStats(prev => ({
-                        ...prev,
-                        revenue: `$${totalRevenue.toLocaleString()}`
-                    }));
-                }
-            }
-        } catch (error) {
-            console.error("DASHBOARD_FETCH_ERROR", error);
-        } finally {
-            setIsLoading(false);
-        }
-    };
-
-    useEffect(() => {
-        if (session?.user && (status === "authenticated")) {
-            fetchDashboardData();
-        }
-    }, [session, status]);
-
-    const handleVerify = async (id: string) => {
-        try {
-            const res = await fetch(`/api/transactions/${id}`, {
-                method: "PATCH",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ status: "SUCCESS" }),
-            });
-            if (res.ok) {
-                fetchDashboardData();
-            }
-        } catch (error) {
-            console.error(error);
-        }
-    };
-
-    const role = session?.user?.role || "USER";
-
-    const activities = [
-        { title: "Dashboard ready for production", time: "Just now", icon: Zap, color: "text-amber-500" },
-    ];
-
-    const adminStats = [
-        { label: "Total Users", value: stats.users, icon: Users, color: "text-blue-500" },
-        { label: "Revenue", value: stats.revenue, icon: DollarSign, color: "text-emerald-500" },
-        { label: "System Load", value: stats.load, icon: Database, color: "text-amber-500" },
-    ];
 
     if (status === "loading") {
         return (
             <div className="min-h-screen flex items-center justify-center">
-                <div className="w-8 h-8 border-4 border-primary border-t-transparent rounded-full animate-spin" />
+                <div className="flex flex-col items-center gap-3">
+                    <div className="w-10 h-10 border-2 border-blue-500 border-t-transparent rounded-full animate-spin" />
+                    <p className="text-gray-400 text-sm">Loading dashboard...</p>
+                </div>
             </div>
         );
     }
 
     return (
-        <div className="min-h-screen pt-32 pb-20 px-6 bg-background/50">
-            <div className="max-w-6xl mx-auto grid grid-cols-1 lg:grid-cols-4 gap-8">
-
-                {/* Sidebar */}
-                <div className="lg:col-span-1 space-y-6">
-                    <div className="glass-card p-6 rounded-3xl border shadow-xl flex flex-col items-center text-center space-y-4">
-                        <div className="w-20 h-20 rounded-full bg-primary/10 flex items-center justify-center border-4 border-background shadow-lg">
-                            <span className="text-2xl font-bold text-primary">
-                                {session?.user?.name?.[0] || session?.user?.email?.[0] || "U"}
-                            </span>
-                        </div>
-                        <div>
-                            <h2 className="font-bold text-lg">{session?.user?.name || "Premium User"}</h2>
-                            <p className="text-xs text-muted-foreground">{session?.user?.email}</p>
-                        </div>
-                        <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-primary/10 text-primary text-[10px] font-bold uppercase tracking-wider">
-                            <ShieldCheck className="w-3 h-3" />
-                            {role === "OWNER" ? "System Owner" : role === "ADMIN" ? "Admin Support" : "Pro Member"}
-                        </div>
+        <div className="min-h-screen pt-20 pb-16 px-4 sm:px-6 max-w-7xl mx-auto">
+            {/* Header */}
+            <motion.div
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                className="mb-8"
+            >
+                <div className="flex items-center justify-between">
+                    <div>
+                        <h1 className="text-3xl font-extrabold text-white">
+                            Welcome back, <span className="bg-gradient-to-r from-blue-400 to-purple-400 bg-clip-text text-transparent">{session?.user?.name?.split(" ")[0] ?? "User"}</span>
+                        </h1>
+                        <p className="text-gray-400 mt-1">Here's an overview of your conversion activity.</p>
                     </div>
-
-                    <nav className="glass-card p-2 rounded-3xl border shadow-lg space-y-1 font-jakarta">
-                        <Link href="/dashboard" className="flex items-center gap-3 p-3 rounded-2xl bg-secondary text-primary font-bold transition-all">
-                            <BarChart3 className="w-5 h-5" />
-                            Overview
+                    <div className="hidden sm:flex items-center gap-2">
+                        <Link href="/tools">
+                            <button className="flex items-center gap-2 px-5 py-2.5 bg-gradient-to-r from-blue-600 to-purple-600 text-white text-sm font-semibold rounded-xl hover:opacity-90 transition-all">
+                                <Zap className="w-4 h-4" /> Convert File
+                            </button>
                         </Link>
+                        <Link href="/dashboard/settings">
+                            <button className="p-2.5 bg-gray-800 border border-gray-700 rounded-xl text-gray-400 hover:text-white transition-colors">
+                                <Settings className="w-5 h-5" />
+                            </button>
+                        </Link>
+                    </div>
+                </div>
+            </motion.div>
 
-                        {(role === "ADMIN" || role === "OWNER") && (
-                            <>
-                                <Link href="/dashboard/transactions" className="flex items-center gap-3 p-3 rounded-2xl hover:bg-secondary/50 text-muted-foreground hover:text-foreground transition-all">
-                                    <ArrowRightLeft className="w-5 h-5" />
-                                    Transactions
-                                </Link>
-                                <Link href="/dashboard/users" className="flex items-center gap-3 p-3 rounded-2xl hover:bg-secondary/50 text-muted-foreground hover:text-foreground transition-all">
-                                    <Users className="w-5 h-5" />
-                                    User List
-                                </Link>
-                            </>
-                        )}
+            {/* Stat Cards */}
+            <motion.div
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 0.1 }}
+                className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-8"
+            >
+                {statCards.map((stat, i) => {
+                    const Icon = stat.icon;
+                    return (
+                        <div key={stat.label} className="bg-gray-900 border border-gray-800 rounded-2xl p-5">
+                            <div className="flex items-start justify-between mb-3">
+                                <Icon className={`w-5 h-5 ${stat.color}`} />
+                                <span className="text-xs text-gray-600">{stat.change}</span>
+                            </div>
+                            <div className="text-2xl font-bold text-white mb-1">{stat.value}</div>
+                            <div className="text-xs text-gray-500">{stat.label}</div>
+                        </div>
+                    );
+                })}
+            </motion.div>
 
-                        {role === "OWNER" && (
-                            <Link href="/dashboard/settings" className="flex items-center gap-3 p-3 rounded-2xl hover:bg-secondary/50 text-muted-foreground hover:text-foreground transition-all">
-                                <ShieldAlert className="w-5 h-5" />
-                                System Config
+            {/* Quick Actions */}
+            <motion.div
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 0.2 }}
+                className="mb-8"
+            >
+                <div className="flex items-center justify-between mb-4">
+                    <h2 className="text-lg font-bold text-white">Quick Actions</h2>
+                    <Link href="/" className="text-sm text-blue-400 hover:underline flex items-center gap-1">
+                        All Tools <ArrowRight className="w-3 h-3" />
+                    </Link>
+                </div>
+                <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
+                    {quickActions.map((action) => {
+                        const Icon = action.icon;
+                        return (
+                            <Link key={action.href} href={action.href}>
+                                <div className="group bg-gray-900 border border-gray-800 rounded-xl p-4 text-center hover:border-gray-600 hover:scale-105 transition-all duration-200 cursor-pointer">
+                                    <div className={`w-10 h-10 rounded-lg bg-gradient-to-br ${action.color} flex items-center justify-center mx-auto mb-2`}>
+                                        <Icon className="w-5 h-5 text-white" />
+                                    </div>
+                                    <p className="text-xs text-gray-400 group-hover:text-white transition-colors font-medium leading-tight">{action.label}</p>
+                                </div>
                             </Link>
-                        )}
-
-                        <Link href="/pricing" className="flex items-center gap-3 p-3 rounded-2xl hover:bg-secondary/50 text-muted-foreground hover:text-foreground transition-all">
-                            <CreditCard className="w-5 h-5" />
-                            Subscription
-                        </Link>
-                        <Link href="/dashboard/settings" className="flex items-center gap-3 p-3 rounded-2xl hover:bg-secondary/50 text-muted-foreground hover:text-foreground transition-all">
-                            <Settings className="w-5 h-5" />
-                            Settings
-                        </Link>
-                    </nav>
+                        );
+                    })}
                 </div>
+            </motion.div>
 
-                {/* Main Content */}
-                <div className="lg:col-span-3 space-y-8 font-jakarta">
-                    {/* Welcome Header */}
-                    <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-                        <div>
-                            <h1 className="text-3xl font-bold tracking-tight">Dashboard Overview</h1>
-                            <p className="text-muted-foreground">Welcome back! Here&apos;s what&apos;s happening with your files.</p>
-                        </div>
-                        <Link
-                            href="/"
-                            className="inline-flex items-center gap-2 px-6 py-3 bg-primary text-primary-foreground rounded-2xl font-bold shadow-lg shadow-primary/20 hover:shadow-primary/40 transition-all active:scale-95"
-                        >
-                            <Rocket className="w-4 h-4" />
-                            New Conversion
-                        </Link>
-                    </div>
-
-                    {/* Stats Grid */}
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                        {(role === "OWNER" || role === "ADMIN") ? (
-                            adminStats.map((stat, idx) => (
-                                <div key={idx} className="glass-card p-6 rounded-3xl border shadow-lg bg-gradient-to-br from-white/50 to-primary/5">
-                                    <div className="text-muted-foreground text-sm font-medium mb-1 flex items-center justify-between">
-                                        {stat.label}
-                                        <stat.icon className={`w-4 h-4 ${stat.color}`} />
-                                    </div>
-                                    <div className="text-3xl font-bold tracking-tight">{stat.value}</div>
-                                </div>
-                            ))
-                        ) : (
-                            <>
-                                <div className="glass-card p-6 rounded-3xl border shadow-lg bg-gradient-to-br from-white/50 to-primary/5">
-                                    <div className="text-muted-foreground text-sm font-medium mb-1">Total Conversions</div>
-                                    <div className="text-3xl font-bold">0</div>
-                                    <div className="mt-4 text-[10px] text-emerald-500 font-bold bg-emerald-500/10 inline-block px-2 py-0.5 rounded-full">
-                                        New Account
-                                    </div>
-                                </div>
-                                <div className="glass-card p-6 rounded-3xl border shadow-lg">
-                                    <div className="text-muted-foreground text-sm font-medium mb-1">Storage Used</div>
-                                    <div className="text-3xl font-bold">0 MB</div>
-                                    <div className="mt-2 h-1.5 w-full bg-secondary rounded-full overflow-hidden">
-                                        <div className="h-full bg-primary w-[0%]" />
-                                    </div>
-                                </div>
-                                <div className="glass-card p-6 rounded-3xl border shadow-lg">
-                                    <div className="text-muted-foreground text-sm font-medium mb-1">Plan Limit</div>
-                                    <div className="text-3xl font-bold">Pro</div>
-                                    <p className="mt-2 text-[10px] text-muted-foreground font-medium uppercase tracking-tight">
-                                        Unlimited for early adopters
-                                    </p>
-                                </div>
-                            </>
-                        )}
-                    </div>
-
-                    {/* Role specific content */}
-                    {(role === "OWNER" || role === "ADMIN") && (
-                        <div className="glass-card p-8 rounded-[32px] border border-primary/20 bg-primary/5 space-y-6">
-                            <div className="flex items-center gap-3">
-                                <ShieldAlert className="w-6 h-6 text-primary" />
-                                <h3 className="text-xl font-bold">Pending verifications</h3>
-                            </div>
-                            <div className="overflow-x-auto">
-                                <table className="w-full text-sm text-left">
-                                    <thead className="text-xs uppercase text-muted-foreground border-b uppercase tracking-widest font-bold">
-                                        <tr>
-                                            <th className="pb-4">User</th>
-                                            <th className="pb-4">Plan</th>
-                                            <th className="pb-4">Method</th>
-                                            <th className="pb-4">Amount</th>
-                                            <th className="pb-4">Action</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody className="divide-y">
-                                        {transactions.filter(t => t.status === "PENDING").length === 0 ? (
-                                            <tr><td colSpan={5} className="py-8 text-center text-muted-foreground">No pending verifications</td></tr>
-                                        ) : (
-                                            transactions.filter(t => t.status === "PENDING").map((tx) => (
-                                                <tr key={tx.id} className="group">
-                                                    <td className="py-4 font-medium">{tx.user?.email || "Unknown"}</td>
-                                                    <td className="py-4">{tx.planName}</td>
-                                                    <td className="py-4">{tx.paymentMethod}</td>
-                                                    <td className="py-4 font-bold text-primary italic">
-                                                        {tx.currency === "USD" ? `$${tx.amount}` : `Rp${tx.amount.toLocaleString()}`}
-                                                    </td>
-                                                    <td className="py-4">
-                                                        <button
-                                                            onClick={() => handleVerify(tx.id)}
-                                                            className="px-4 py-2 rounded-xl bg-emerald-500 text-white font-bold text-xs hover:shadow-lg hover:shadow-emerald-500/30 transition-all active:scale-95"
-                                                        >
-                                                            Verify
-                                                        </button>
-                                                    </td>
-                                                </tr>
-                                            ))
-                                        )}
-                                    </tbody>
-                                </table>
-                            </div>
-                        </div>
-                    )}
-
-                    {/* Recent Activity */}
-                    <div className="space-y-4">
-                        <div className="flex items-center justify-between">
-                            <h3 className="text-xl font-bold">Recent Activity</h3>
-                            <Link href="/dashboard/transactions" className="text-primary text-sm font-bold hover:underline">View All</Link>
-                        </div>
-                        <div className="glass-card rounded-[32px] border shadow-xl divide-y divide-border overflow-hidden">
-                            {activities.map((activity, idx) => (
-                                <div key={idx} className="p-5 flex items-center justify-between group hover:bg-secondary/30 transition-colors">
-                                    <div className="flex items-center gap-4">
-                                        <div className={`p-3 rounded-2xl bg-secondary ${activity.color}`}>
-                                            <activity.icon className="w-5 h-5" />
-                                        </div>
-                                        <div>
-                                            <h4 className="font-bold text-sm tracking-tight">{activity.title}</h4>
-                                            <p className="text-xs text-muted-foreground flex items-center gap-1.5 mt-0.5">
-                                                <Clock className="w-3 h-3" />
-                                                {activity.time}
-                                            </p>
-                                        </div>
-                                    </div>
-                                    <button className="opacity-0 group-hover:opacity-100 p-2 hover:bg-secondary rounded-xl transition-all">
-                                        <FileText className="w-4 h-4 text-muted-foreground" />
-                                    </button>
-                                </div>
-                            ))}
-                        </div>
+            {/* Recent Conversions */}
+            <motion.div
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 0.3 }}
+            >
+                <div className="flex items-center justify-between mb-4">
+                    <h2 className="text-lg font-bold text-white">Recent Conversions</h2>
+                    <Link href="/dashboard/transactions" className="text-sm text-blue-400 hover:underline flex items-center gap-1">
+                        View All <ArrowRight className="w-3 h-3" />
+                    </Link>
+                </div>
+                <div className="bg-gray-900 border border-gray-800 rounded-2xl overflow-hidden">
+                    <div className="overflow-x-auto">
+                        <table className="w-full">
+                            <thead>
+                                <tr className="border-b border-gray-800">
+                                    <th className="text-left px-5 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide">File</th>
+                                    <th className="text-left px-5 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide">Tool</th>
+                                    <th className="text-left px-5 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide">Date</th>
+                                    <th className="text-left px-5 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide">Size</th>
+                                    <th className="text-left px-5 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide">Status</th>
+                                    <th className="px-5 py-3"></th>
+                                </tr>
+                            </thead>
+                            <tbody className="divide-y divide-gray-800">
+                                {mockHistory.map((item, i) => (
+                                    <motion.tr
+                                        key={item.id}
+                                        initial={{ opacity: 0, x: -10 }}
+                                        animate={{ opacity: 1, x: 0 }}
+                                        transition={{ delay: 0.3 + i * 0.05 }}
+                                        className="hover:bg-gray-800/50 transition-colors"
+                                    >
+                                        <td className="px-5 py-3">
+                                            <div className="flex items-center gap-3">
+                                                <div className="w-8 h-8 bg-gray-800 rounded-lg flex items-center justify-center flex-shrink-0">
+                                                    <FileText className="w-4 h-4 text-gray-400" />
+                                                </div>
+                                                <span className="text-gray-200 text-sm font-medium truncate max-w-[120px]">{item.filename}</span>
+                                            </div>
+                                        </td>
+                                        <td className="px-5 py-3">
+                                            <span className="text-gray-400 text-sm">{item.tool}</span>
+                                        </td>
+                                        <td className="px-5 py-3">
+                                            <span className="text-gray-500 text-sm flex items-center gap-1">
+                                                <Clock className="w-3.5 h-3.5" />{item.date}
+                                            </span>
+                                        </td>
+                                        <td className="px-5 py-3">
+                                            <span className="text-gray-500 text-sm">{item.size}</span>
+                                        </td>
+                                        <td className="px-5 py-3">
+                                            {item.status === "success" ? (
+                                                <span className="inline-flex items-center gap-1 text-xs text-green-400 bg-green-500/10 border border-green-500/20 px-2 py-1 rounded-full">
+                                                    <CheckCircle2 className="w-3 h-3" /> Done
+                                                </span>
+                                            ) : (
+                                                <span className="inline-flex items-center gap-1 text-xs text-red-400 bg-red-500/10 border border-red-500/20 px-2 py-1 rounded-full">
+                                                    <XCircle className="w-3 h-3" /> Failed
+                                                </span>
+                                            )}
+                                        </td>
+                                        <td className="px-5 py-3">
+                                            {item.status === "success" && (
+                                                <button className="p-1.5 text-gray-500 hover:text-blue-400 hover:bg-blue-500/10 rounded-lg transition-colors">
+                                                    <Download className="w-4 h-4" />
+                                                </button>
+                                            )}
+                                        </td>
+                                    </motion.tr>
+                                ))}
+                            </tbody>
+                        </table>
                     </div>
                 </div>
-            </div>
+            </motion.div>
         </div>
     );
 }

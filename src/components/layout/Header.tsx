@@ -1,169 +1,270 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import Logo from "@/components/shared/Logo";
 import Link from "next/link";
 import { motion, AnimatePresence } from "framer-motion";
-import { ChevronDown, Menu, X, Rocket, Crown, LogOut, User as UserIcon, FileDown, Layers, Scissors, Minimize2, Image, FileText, FileCode, BarChart3, Layout, Hash, Lock, Unlock as UnlockIcon, Wrench, Stamp, ScanText, Globe } from "lucide-react";
+import {
+    ChevronDown, Menu, X, Rocket, LogOut, User as UserIcon,
+    FileDown, Layers, Scissors, Minimize2, Image, FileText,
+    FileCode, Layout, Hash, Lock, Unlock as UnlockIcon,
+    Wrench, Stamp, ScanText, Globe, BarChart3
+} from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useSession, signOut } from "next-auth/react";
 
-const tools = [
-    { name: "Organize PDF", href: "/tools/organize-pdf", icon: Layout },
-    { name: "Protect PDF", href: "/tools/protect-pdf", icon: Lock },
-    { name: "Unlock PDF", href: "/tools/unlock-pdf", icon: UnlockIcon },
-    { name: "Repair PDF", href: "/tools/repair-pdf", icon: Wrench },
-    { name: "Watermark", href: "/tools/watermark-pdf", icon: Stamp },
-    { name: "OCR PDF", href: "/tools/ocr-pdf", icon: ScanText },
-    { name: "PDF to Word", href: "/tools/pdf-to-word", icon: FileText },
-    { name: "HTML to PDF", href: "/tools/web-to-pdf", icon: Globe },
-    { name: "Page Numbers", href: "/tools/page-numbers", icon: Hash },
-    { name: "Markdown to PDF", href: "/tools/markdown-to-pdf", icon: FileText },
-    { name: "Markdown to Graph", href: "/tools/markdown-to-graph", icon: BarChart3 },
-    { name: "Merge PDF", href: "/tools/merge-pdf", icon: Layers },
-    { name: "Split PDF", href: "/tools/split-pdf", icon: Scissors },
-    { name: "Compress PDF", href: "/tools/compress-pdf", icon: Minimize2 },
-    { name: "PDF to Image", href: "/tools/pdf-to-image", icon: Image },
-    { name: "Image to PDF", href: "/tools/image-to-pdf", icon: FileDown },
-    { name: "Word to PDF", href: "/tools/word-to-pdf", icon: FileCode },
+const toolCategories = [
+    {
+        label: "Convert",
+        tools: [
+            { name: "PDF to Word", href: "/tools/pdf-to-word", icon: FileDown },
+            { name: "Word to PDF", href: "/tools/word-to-pdf", icon: FileCode },
+            { name: "Image to PDF", href: "/tools/image-to-pdf", icon: Image },
+            { name: "PDF to Image", href: "/tools/pdf-to-image", icon: Image },
+            { name: "Markdown to PDF", href: "/tools/markdown-to-pdf", icon: FileText },
+            { name: "Web to PDF", href: "/tools/web-to-pdf", icon: Globe },
+            { name: "OCR PDF", href: "/tools/ocr-pdf", icon: ScanText },
+            { name: "Markdown to Graph", href: "/tools/markdown-to-graph", icon: BarChart3 },
+        ],
+    },
+    {
+        label: "PDF Tools",
+        tools: [
+            { name: "Merge PDF", href: "/tools/merge-pdf", icon: Layers },
+            { name: "Split PDF", href: "/tools/split-pdf", icon: Scissors },
+            { name: "Organize PDF", href: "/tools/organize-pdf", icon: Layout },
+            { name: "Page Numbers", href: "/tools/page-numbers", icon: Hash },
+        ],
+    },
+    {
+        label: "Optimize & Security",
+        tools: [
+            { name: "Compress PDF", href: "/tools/compress-pdf", icon: Minimize2 },
+            { name: "Protect PDF", href: "/tools/protect-pdf", icon: Lock },
+            { name: "Unlock PDF", href: "/tools/unlock-pdf", icon: UnlockIcon },
+            { name: "Watermark PDF", href: "/tools/watermark-pdf", icon: Stamp },
+            { name: "Repair PDF", href: "/tools/repair-pdf", icon: Wrench },
+        ],
+    },
 ];
 
 export default function Header() {
-    const { data: session, status } = useSession();
+    const { data: session } = useSession();
     const [isScrolled, setIsScrolled] = useState(false);
-    const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+    const [mobileOpen, setMobileOpen] = useState(false);
+    const [toolsOpen, setToolsOpen] = useState(false);
+    const [userMenuOpen, setUserMenuOpen] = useState(false);
 
     useEffect(() => {
-        const handleScroll = () => setIsScrolled(window.scrollY > 10);
-        window.addEventListener("scroll", handleScroll);
-        return () => window.removeEventListener("scroll", handleScroll);
+        const onScroll = () => setIsScrolled(window.scrollY > 10);
+        window.addEventListener("scroll", onScroll);
+        return () => window.removeEventListener("scroll", onScroll);
     }, []);
 
     return (
-        <header
-            className={cn(
-                "fixed top-0 left-0 right-0 z-50 transition-all duration-300 px-6 py-4",
-                isScrolled
-                    ? "bg-background/80 backdrop-blur-lg border-b shadow-sm py-3"
-                    : "bg-transparent"
-            )}
-        >
-            <div className="max-w-7xl mx-auto flex items-center justify-between">
-                <Logo />
-
-                {/* Desktop Navigation */}
-                <nav className="hidden lg:flex items-center gap-8">
-                    <div className="relative group">
-                        <button className="flex items-center gap-1 font-bold text-sm tracking-tight hover:text-primary transition-colors">
-                            TRANSFORM <ChevronDown className="w-4 h-4 group-hover:rotate-180 transition-transform" />
-                        </button>
-                        <div className="absolute top-full left-0 pt-4 opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-300">
-                            <div className="bg-popover border rounded-[2rem] shadow-2xl p-3 min-w-[280px] grid gap-1">
-                                {tools.map((tool) => (
-                                    <Link
-                                        key={tool.name}
-                                        href={tool.href}
-                                        className="px-4 py-3 rounded-2xl hover:bg-secondary flex items-center justify-between group/item transition-colors"
-                                    >
-                                        <div className="flex items-center gap-3">
-                                            <tool.icon className="w-4 h-4 text-muted-foreground group-hover/item:text-primary transition-colors" />
-                                            <span className="text-sm font-semibold">{tool.name}</span>
-                                        </div>
-                                        <Rocket className="w-3 h-3 opacity-0 group-hover/item:opacity-100 transition-all group-hover/item:-translate-y-1" />
-                                    </Link>
-                                ))}
+        <>
+            <header
+                className={cn(
+                    "fixed top-0 left-0 right-0 z-50 transition-all duration-300",
+                    isScrolled
+                        ? "bg-gray-950/95 backdrop-blur-md border-b border-gray-800 shadow-lg"
+                        : "bg-transparent"
+                )}
+            >
+                <div className="max-w-7xl mx-auto px-4 sm:px-6">
+                    <div className="flex items-center justify-between h-16">
+                        {/* Logo */}
+                        <Link href="/" className="flex items-center gap-2 flex-shrink-0">
+                            <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center">
+                                <Rocket className="w-4 h-4 text-white" />
                             </div>
-                        </div>
-                    </div>
-                    <Link href="/pricing" className="text-sm font-bold tracking-tight hover:text-primary transition-colors uppercase">Pricing</Link>
-                    <Link href="/about" className="text-sm font-bold tracking-tight hover:text-primary transition-colors uppercase">About</Link>
-                    <Link href="/contact" className="text-sm font-bold tracking-tight hover:text-primary transition-colors uppercase">Contact</Link>
-                </nav>
+                            <span className="font-extrabold text-lg bg-gradient-to-r from-blue-400 to-purple-400 bg-clip-text text-transparent">
+                                ConvertHub
+                            </span>
+                        </Link>
 
-                <div className="hidden lg:flex items-center gap-4">
-                    {status === "authenticated" ? (
-                        <div className="flex items-center gap-4">
-                            <Link href="/dashboard" className="flex items-center gap-2 px-5 py-2.5 bg-secondary hover:bg-primary hover:text-white rounded-full border transition-all active:scale-95 group shadow-sm">
-                                <UserIcon className="w-4 h-4 text-primary group-hover:text-white transition-colors" />
-                                <span className="font-extrabold text-[11px] uppercase tracking-wider">
-                                    {session?.user?.role === "OWNER" ? "Owner Access" : session?.user?.role === "ADMIN" ? "Admin Panel" : "Dashboard"}
-                                </span>
+                        {/* Desktop Nav */}
+                        <nav className="hidden md:flex items-center gap-1">
+                            {/* Tools Dropdown */}
+                            <div className="relative">
+                                <button
+                                    onMouseEnter={() => setToolsOpen(true)}
+                                    onMouseLeave={() => setToolsOpen(false)}
+                                    className="flex items-center gap-1 px-4 py-2 text-gray-300 hover:text-white text-sm font-medium rounded-lg hover:bg-gray-800 transition-colors"
+                                >
+                                    Tools
+                                    <ChevronDown className={cn("w-4 h-4 transition-transform", toolsOpen && "rotate-180")} />
+                                </button>
+                                <AnimatePresence>
+                                    {toolsOpen && (
+                                        <motion.div
+                                            initial={{ opacity: 0, y: 8 }}
+                                            animate={{ opacity: 1, y: 0 }}
+                                            exit={{ opacity: 0, y: 8 }}
+                                            transition={{ duration: 0.15 }}
+                                            onMouseEnter={() => setToolsOpen(true)}
+                                            onMouseLeave={() => setToolsOpen(false)}
+                                            className="absolute top-full left-0 mt-1 w-[680px] bg-gray-900 border border-gray-700 rounded-2xl shadow-2xl p-5 grid grid-cols-3 gap-6"
+                                        >
+                                            {toolCategories.map((cat) => (
+                                                <div key={cat.label}>
+                                                    <p className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-3">{cat.label}</p>
+                                                    <div className="space-y-1">
+                                                        {cat.tools.map((tool) => {
+                                                            const Icon = tool.icon;
+                                                            return (
+                                                                <Link
+                                                                    key={tool.href}
+                                                                    href={tool.href}
+                                                                    onClick={() => setToolsOpen(false)}
+                                                                    className="flex items-center gap-2 px-2 py-1.5 text-gray-400 hover:text-white hover:bg-gray-800 rounded-lg text-sm transition-colors"
+                                                                >
+                                                                    <Icon className="w-3.5 h-3.5 text-blue-400 flex-shrink-0" />
+                                                                    {tool.name}
+                                                                </Link>
+                                                            );
+                                                        })}
+                                                    </div>
+                                                </div>
+                                            ))}
+                                        </motion.div>
+                                    )}
+                                </AnimatePresence>
+                            </div>
+
+                            <Link href="/pricing" className="px-4 py-2 text-gray-300 hover:text-white text-sm font-medium rounded-lg hover:bg-gray-800 transition-colors">
+                                Pricing
                             </Link>
-                            <button
-                                onClick={() => signOut()}
-                                className="p-2.5 text-muted-foreground hover:text-destructive transition-colors group"
-                                title="Secure Logout"
-                            >
-                                <LogOut className="w-5 h-5 group-hover:rotate-12 transition-transform" />
-                            </button>
-                        </div>
-                    ) : (
-                        <div className="flex items-center gap-3">
-                            <Link href="/login" className="px-5 py-2.5 font-bold text-sm tracking-tight hover:text-primary transition-colors hover:bg-secondary rounded-full">Log In</Link>
-                            <Link
-                                href="/signup"
-                                className="px-7 py-3 bg-primary text-primary-foreground rounded-full font-black text-sm tracking-tight hover:shadow-2xl hover:shadow-primary/40 transition-all active:scale-95 flex items-center gap-2"
-                            >
-                                <Crown className="w-4 h-4" />
-                                JOIN NOW
+                            <Link href="/about" className="px-4 py-2 text-gray-300 hover:text-white text-sm font-medium rounded-lg hover:bg-gray-800 transition-colors">
+                                About
                             </Link>
+                        </nav>
+
+                        {/* Auth / User Actions */}
+                        <div className="hidden md:flex items-center gap-3">
+                            {session ? (
+                                <div className="relative">
+                                    <button
+                                        onClick={() => setUserMenuOpen(!userMenuOpen)}
+                                        className="flex items-center gap-2 px-3 py-2 bg-gray-800 hover:bg-gray-700 rounded-xl border border-gray-700 transition-colors text-sm"
+                                    >
+                                        <div className="w-7 h-7 rounded-full bg-gradient-to-br from-blue-500 to-purple-500 flex items-center justify-center text-white text-xs font-bold">
+                                            {session.user?.name?.[0]?.toUpperCase() ?? "U"}
+                                        </div>
+                                        <span className="text-gray-200 font-medium max-w-24 truncate">{session.user?.name}</span>
+                                        <ChevronDown className="w-4 h-4 text-gray-400" />
+                                    </button>
+                                    <AnimatePresence>
+                                        {userMenuOpen && (
+                                            <motion.div
+                                                initial={{ opacity: 0, y: 8 }}
+                                                animate={{ opacity: 1, y: 0 }}
+                                                exit={{ opacity: 0, y: 8 }}
+                                                className="absolute right-0 top-full mt-2 w-48 bg-gray-900 border border-gray-700 rounded-xl shadow-xl overflow-hidden"
+                                            >
+                                                <Link
+                                                    href="/dashboard"
+                                                    onClick={() => setUserMenuOpen(false)}
+                                                    className="flex items-center gap-2 px-4 py-3 text-gray-300 hover:bg-gray-800 text-sm transition-colors"
+                                                >
+                                                    <UserIcon className="w-4 h-4" /> Dashboard
+                                                </Link>
+                                                <button
+                                                    onClick={() => signOut()}
+                                                    className="flex items-center gap-2 px-4 py-3 text-red-400 hover:bg-gray-800 text-sm w-full transition-colors"
+                                                >
+                                                    <LogOut className="w-4 h-4" /> Sign Out
+                                                </button>
+                                            </motion.div>
+                                        )}
+                                    </AnimatePresence>
+                                </div>
+                            ) : (
+                                <>
+                                    <Link href="/login">
+                                        <button className="px-4 py-2 text-gray-300 hover:text-white text-sm font-medium rounded-lg hover:bg-gray-800 transition-colors">
+                                            Log in
+                                        </button>
+                                    </Link>
+                                    <Link href="/signup">
+                                        <button className="px-5 py-2 bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white text-sm font-semibold rounded-xl transition-all shadow-lg shadow-blue-500/20">
+                                            Get Started
+                                        </button>
+                                    </Link>
+                                </>
+                            )}
                         </div>
-                    )}
+
+                        {/* Mobile Menu Button */}
+                        <button
+                            onClick={() => setMobileOpen(!mobileOpen)}
+                            className="md:hidden p-2 text-gray-400 hover:text-white rounded-lg hover:bg-gray-800 transition-colors"
+                        >
+                            {mobileOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
+                        </button>
+                    </div>
                 </div>
 
-                {/* Mobile Toggle */}
-                <button
-                    className="lg:hidden p-2.5 hover:bg-secondary rounded-2xl transition-colors"
-                    onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
-                >
-                    {isMobileMenuOpen ? <X className="w-6 h-6" /> : <Menu className="w-6 h-6" />}
-                </button>
-            </div>
-
-            {/* Mobile Menu */}
-            <AnimatePresence>
-                {isMobileMenuOpen && (
-                    <motion.div
-                        initial={{ opacity: 0, y: -20 }}
-                        animate={{ opacity: 1, y: 0 }}
-                        exit={{ opacity: 0, y: -20 }}
-                        className="lg:hidden absolute top-full left-0 right-0 bg-background/95 backdrop-blur-xl border-b p-8 shadow-2xl overflow-y-auto max-h-[80vh]"
-                    >
-                        <div className="grid gap-6">
-                            <div className="font-black text-[10px] uppercase tracking-[0.2em] text-muted-foreground pt-2">Transformation Engines</div>
-                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                                {tools.map((tool) => (
-                                    <Link
-                                        key={tool.name}
-                                        href={tool.href}
-                                        className="text-sm font-bold p-4 bg-secondary/50 rounded-2xl flex items-center gap-3 active:bg-primary active:text-white transition-colors"
-                                        onClick={() => setIsMobileMenuOpen(false)}
-                                    >
-                                        <tool.icon className="w-4 h-4" />
-                                        {tool.name}
-                                    </Link>
+                {/* Mobile Menu */}
+                <AnimatePresence>
+                    {mobileOpen && (
+                        <motion.div
+                            initial={{ opacity: 0, height: 0 }}
+                            animate={{ opacity: 1, height: "auto" }}
+                            exit={{ opacity: 0, height: 0 }}
+                            className="md:hidden bg-gray-950 border-t border-gray-800 overflow-hidden"
+                        >
+                            <div className="px-4 py-4 space-y-1">
+                                {toolCategories.map((cat) => (
+                                    <div key={cat.label}>
+                                        <p className="text-xs font-bold text-gray-600 uppercase tracking-wider px-3 py-2">{cat.label}</p>
+                                        {cat.tools.map((tool) => {
+                                            const Icon = tool.icon;
+                                            return (
+                                                <Link
+                                                    key={tool.href}
+                                                    href={tool.href}
+                                                    onClick={() => setMobileOpen(false)}
+                                                    className="flex items-center gap-3 px-3 py-2 text-gray-400 hover:text-white hover:bg-gray-800 rounded-lg text-sm transition-colors"
+                                                >
+                                                    <Icon className="w-4 h-4 text-blue-400" />
+                                                    {tool.name}
+                                                </Link>
+                                            );
+                                        })}
+                                    </div>
                                 ))}
+                                <div className="pt-3 border-t border-gray-800 flex gap-2">
+                                    {session ? (
+                                        <>
+                                            <Link href="/dashboard" onClick={() => setMobileOpen(false)} className="flex-1">
+                                                <button className="w-full py-2 bg-gray-800 text-gray-200 rounded-xl text-sm font-medium">Dashboard</button>
+                                            </Link>
+                                            <button onClick={() => signOut()} className="flex-1 py-2 bg-red-500/10 text-red-400 rounded-xl text-sm font-medium">Sign Out</button>
+                                        </>
+                                    ) : (
+                                        <>
+                                            <Link href="/login" onClick={() => setMobileOpen(false)} className="flex-1">
+                                                <button className="w-full py-2 bg-gray-800 text-gray-200 rounded-xl text-sm font-medium">Log in</button>
+                                            </Link>
+                                            <Link href="/signup" onClick={() => setMobileOpen(false)} className="flex-1">
+                                                <button className="w-full py-2 bg-gradient-to-r from-blue-600 to-purple-600 text-white rounded-xl text-sm font-semibold">Sign Up</button>
+                                            </Link>
+                                        </>
+                                    )}
+                                </div>
                             </div>
-                            <hr className="border-secondary" />
-                            <div className="grid gap-4">
-                                <Link href="/pricing" className="text-xl font-black tracking-tight flex items-center justify-between" onClick={() => setIsMobileMenuOpen(false)}>
-                                    Pricing <ChevronDown className="w-4 h-4 -rotate-90" />
-                                </Link>
-                                <Link href="/about" className="text-xl font-black tracking-tight flex items-center justify-between" onClick={() => setIsMobileMenuOpen(false)}>
-                                    About <ChevronDown className="w-4 h-4 -rotate-90" />
-                                </Link>
-                                <Link href="/contact" className="text-xl font-black tracking-tight flex items-center justify-between" onClick={() => setIsMobileMenuOpen(false)}>
-                                    Contact <ChevronDown className="w-4 h-4 -rotate-90" />
-                                </Link>
-                            </div>
-                            <div className="grid grid-cols-2 gap-4 mt-6">
-                                <Link href="/login" className="px-4 py-4 text-center border-2 rounded-[1.5rem] font-black text-sm uppercase tracking-wider shadow-sm" onClick={() => setIsMobileMenuOpen(false)}>Log In</Link>
-                                <Link href="/signup" className="px-4 py-4 text-center bg-primary text-primary-foreground rounded-[1.5rem] font-black text-sm uppercase tracking-wider shadow-xl shadow-primary/20" onClick={() => setIsMobileMenuOpen(false)}>Sign Up</Link>
-                            </div>
-                        </div>
-                    </motion.div>
-                )}
-            </AnimatePresence>
-        </header>
+                        </motion.div>
+                    )}
+                </AnimatePresence>
+            </header>
+
+            {/* Backdrop for user menu */}
+            {userMenuOpen && (
+                <div
+                    className="fixed inset-0 z-40"
+                    onClick={() => setUserMenuOpen(false)}
+                />
+            )}
+        </>
     );
 }
