@@ -106,7 +106,7 @@ export default function FileUploadZone({
     return (
         <div className="w-full space-y-3">
             <motion.div
-                {...getRootProps()}
+                {...(getRootProps() as any)}
                 whileHover={{ scale: 1.01 }}
                 whileTap={{ scale: 0.99 }}
                 className={cn(

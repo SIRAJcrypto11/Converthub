@@ -62,6 +62,7 @@ async function triggerServerDownload(
     const form = document.createElement("form");
     form.method = "POST";
     form.action = "/api/download-file";
+    form.enctype = "multipart/form-data";
     form.style.display = "none";
 
     const fileInput = document.createElement("input");
