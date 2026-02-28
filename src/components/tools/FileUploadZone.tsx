@@ -30,7 +30,7 @@ function getFileIcon(file: File) {
     if (type.includes("image")) return <Image className="w-5 h-5 text-blue-400" />;
     if (type.includes("word") || type.includes("document")) return <FileText className="w-5 h-5 text-blue-500" />;
     if (type.includes("zip") || type.includes("archive")) return <FileArchive className="w-5 h-5 text-yellow-400" />;
-    return <File className="w-5 h-5 text-gray-400" />;
+    return <File className="w-5 h-5 text-muted-foreground" />;
 }
 
 export default function FileUploadZone({
@@ -112,10 +112,10 @@ export default function FileUploadZone({
                 className={cn(
                     "relative border-2 border-dashed rounded-2xl p-8 text-center cursor-pointer transition-all duration-300",
                     isDragActive
-                        ? "border-blue-500 bg-blue-500/10 shadow-lg shadow-blue-500/20"
+                        ? "border-primary bg-primary/5 shadow-lg shadow-primary/10"
                         : selectedFiles.length > 0
-                            ? "border-green-500 bg-green-500/5"
-                            : "border-gray-600 bg-gray-800/50 hover:border-gray-400 hover:bg-gray-800"
+                            ? "border-emerald-500 bg-emerald-500/5"
+                            : "border-border bg-secondary/50 hover:border-primary/50 hover:bg-secondary"
                 )}
             >
                 <input {...getInputProps()} />
@@ -144,8 +144,8 @@ export default function FileUploadZone({
                             className="flex flex-col items-center gap-2"
                         >
                             <CheckCircle2 className="w-10 h-10 text-green-400" />
-                            <p className="text-green-400 font-semibold">{selectedFiles[0].name}</p>
-                            <p className="text-gray-400 text-sm">{formatFileSize(selectedFiles[0].size)}</p>
+                            <p className="text-emerald-500 font-bold">{selectedFiles[0].name}</p>
+                            <p className="text-muted-foreground text-sm font-medium">{formatFileSize(selectedFiles[0].size)}</p>
                             {uploadProgress > 0 && uploadProgress < 100 && (
                                 <div className="w-full max-w-xs bg-gray-700 rounded-full h-2 mt-2">
                                     <motion.div
@@ -165,15 +165,15 @@ export default function FileUploadZone({
                             animate={{ opacity: 1 }}
                             className="flex flex-col items-center gap-3"
                         >
-                            <div className="w-16 h-16 rounded-full bg-gray-700 flex items-center justify-center">
-                                <Upload className="w-8 h-8 text-gray-400" />
+                            <div className="w-16 h-16 rounded-full bg-secondary flex items-center justify-center">
+                                <Upload className="w-8 h-8 text-muted-foreground" />
                             </div>
                             <div>
-                                <p className="text-gray-200 font-semibold text-lg">{label}</p>
-                                <p className="text-gray-400 text-sm mt-1">
-                                    Drag & drop atau <span className="text-blue-400 underline">pilih file</span>
+                                <p className="text-foreground font-bold text-lg">{label}</p>
+                                <p className="text-muted-foreground font-medium text-sm mt-1">
+                                    Drag & drop atau <span className="text-primary underline">pilih file</span>
                                 </p>
-                                <p className="text-gray-500 text-xs mt-1">Maks. {formatFileSize(maxSize)}{multiple ? ` · hingga ${maxFiles} file` : ""}</p>
+                                <p className="text-muted-foreground/70 font-semibold text-xs mt-1">Maks. {formatFileSize(maxSize)}{multiple ? ` · hingga ${maxFiles} file` : ""}</p>
                             </div>
                         </motion.div>
                     )}
@@ -187,9 +187,9 @@ export default function FileUploadZone({
                         initial={{ opacity: 0, y: -8 }}
                         animate={{ opacity: 1, y: 0 }}
                         exit={{ opacity: 0, y: -8 }}
-                        className="flex items-center gap-2 text-red-400 text-sm bg-red-500/10 border border-red-500/30 rounded-lg px-4 py-2"
+                        className="flex items-center gap-2 text-destructive font-medium text-sm bg-destructive/10 border border-destructive/20 rounded-xl px-4 py-3 shadow-sm"
                     >
-                        <AlertCircle className="w-4 h-4 flex-shrink-0" />
+                        <AlertCircle className="w-5 h-5 flex-shrink-0" />
                         {error}
                     </motion.div>
                 )}
@@ -200,9 +200,9 @@ export default function FileUploadZone({
                 <motion.div
                     initial={{ opacity: 0 }}
                     animate={{ opacity: 1 }}
-                    className="space-y-2"
+                    className="space-y-3 pt-2"
                 >
-                    <p className="text-gray-400 text-xs font-medium uppercase tracking-wide">
+                    <p className="text-muted-foreground/80 text-xs font-bold uppercase tracking-widest pl-1">
                         {selectedFiles.length} file dipilih
                     </p>
                     {selectedFiles.map((file, index) => (
@@ -211,18 +211,18 @@ export default function FileUploadZone({
                             initial={{ opacity: 0, x: -10 }}
                             animate={{ opacity: 1, x: 0 }}
                             transition={{ delay: index * 0.05 }}
-                            className="flex items-center justify-between gap-3 bg-gray-800 border border-gray-700 rounded-xl px-4 py-3"
+                            className="flex items-center justify-between gap-3 bg-card border border-border rounded-xl px-4 py-3 shadow-sm hover:shadow-md transition-shadow"
                         >
                             <div className="flex items-center gap-3 min-w-0">
                                 {getFileIcon(file)}
                                 <div className="min-w-0">
-                                    <p className="text-gray-200 text-sm font-medium truncate">{file.name}</p>
-                                    <p className="text-gray-500 text-xs">{formatFileSize(file.size)}</p>
+                                    <p className="text-foreground text-sm font-bold truncate">{file.name}</p>
+                                    <p className="text-muted-foreground font-medium text-xs">{formatFileSize(file.size)}</p>
                                 </div>
                             </div>
                             <button
                                 onClick={(e) => removeFile(index, e)}
-                                className="flex-shrink-0 w-7 h-7 rounded-full bg-gray-700 hover:bg-red-500/20 hover:text-red-400 text-gray-400 flex items-center justify-center transition-colors"
+                                className="flex-shrink-0 w-8 h-8 rounded-full bg-secondary hover:bg-destructive/10 hover:text-destructive text-muted-foreground flex items-center justify-center transition-colors"
                             >
                                 <X className="w-4 h-4" />
                             </button>

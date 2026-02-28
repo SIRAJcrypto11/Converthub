@@ -49,8 +49,8 @@ export default function DashboardPage() {
         return (
             <div className="min-h-screen flex items-center justify-center">
                 <div className="flex flex-col items-center gap-3">
-                    <div className="w-10 h-10 border-2 border-blue-500 border-t-transparent rounded-full animate-spin" />
-                    <p className="text-gray-400 text-sm">Loading dashboard...</p>
+                    <div className="w-10 h-10 border-2 border-primary border-t-transparent rounded-full animate-spin" />
+                    <p className="text-muted-foreground font-semibold text-sm">Loading dashboard...</p>
                 </div>
             </div>
         );
@@ -66,10 +66,10 @@ export default function DashboardPage() {
             >
                 <div className="flex items-center justify-between">
                     <div>
-                        <h1 className="text-3xl font-extrabold text-white">
-                            Welcome back, <span className="bg-gradient-to-r from-blue-400 to-purple-400 bg-clip-text text-transparent">{session?.user?.name?.split(" ")[0] ?? "User"}</span>
+                        <h1 className="text-3xl font-extrabold text-foreground">
+                            Welcome back, <span className="text-primary">{session?.user?.name?.split(" ")[0] ?? "User"}</span>
                         </h1>
-                        <p className="text-gray-400 mt-1">Here's an overview of your conversion activity.</p>
+                        <p className="text-muted-foreground mt-1 font-medium">Here's an overview of your conversion activity.</p>
                     </div>
                     <div className="hidden sm:flex items-center gap-2">
                         <Link href="/tools">
@@ -78,7 +78,7 @@ export default function DashboardPage() {
                             </button>
                         </Link>
                         <Link href="/dashboard/settings">
-                            <button className="p-2.5 bg-gray-800 border border-gray-700 rounded-xl text-gray-400 hover:text-white transition-colors">
+                            <button className="p-2.5 bg-secondary border border-border rounded-xl text-muted-foreground hover:text-foreground transition-colors shadow-sm">
                                 <Settings className="w-5 h-5" />
                             </button>
                         </Link>
@@ -96,13 +96,13 @@ export default function DashboardPage() {
                 {statCards.map((stat, i) => {
                     const Icon = stat.icon;
                     return (
-                        <div key={stat.label} className="bg-gray-900 border border-gray-800 rounded-2xl p-5">
+                        <div key={stat.label} className="bg-card border border-border rounded-2xl p-5 shadow-sm hover:shadow-md transition-shadow">
                             <div className="flex items-start justify-between mb-3">
                                 <Icon className={`w-5 h-5 ${stat.color}`} />
-                                <span className="text-xs text-gray-600">{stat.change}</span>
+                                <span className="text-xs text-muted-foreground font-semibold">{stat.change}</span>
                             </div>
-                            <div className="text-2xl font-bold text-white mb-1">{stat.value}</div>
-                            <div className="text-xs text-gray-500">{stat.label}</div>
+                            <div className="text-2xl font-black text-foreground mb-1">{stat.value}</div>
+                            <div className="text-xs text-muted-foreground/80 font-bold uppercase tracking-wider">{stat.label}</div>
                         </div>
                     );
                 })}
@@ -116,8 +116,8 @@ export default function DashboardPage() {
                 className="mb-8"
             >
                 <div className="flex items-center justify-between mb-4">
-                    <h2 className="text-lg font-bold text-white">Quick Actions</h2>
-                    <Link href="/" className="text-sm text-blue-400 hover:underline flex items-center gap-1">
+                    <h2 className="text-lg font-extrabold text-foreground">Quick Actions</h2>
+                    <Link href="/" className="text-sm font-bold text-primary hover:underline flex items-center gap-1">
                         All Tools <ArrowRight className="w-3 h-3" />
                     </Link>
                 </div>
@@ -126,11 +126,11 @@ export default function DashboardPage() {
                         const Icon = action.icon;
                         return (
                             <Link key={action.href} href={action.href}>
-                                <div className="group bg-gray-900 border border-gray-800 rounded-xl p-4 text-center hover:border-gray-600 hover:scale-105 transition-all duration-200 cursor-pointer">
+                                <div className="group bg-card border border-border rounded-xl p-4 text-center hover:border-primary/50 hover:scale-105 transition-all duration-200 cursor-pointer shadow-sm hover:shadow-md">
                                     <div className={`w-10 h-10 rounded-lg bg-gradient-to-br ${action.color} flex items-center justify-center mx-auto mb-2`}>
                                         <Icon className="w-5 h-5 text-white" />
                                     </div>
-                                    <p className="text-xs text-gray-400 group-hover:text-white transition-colors font-medium leading-tight">{action.label}</p>
+                                    <p className="text-xs text-muted-foreground group-hover:text-foreground transition-colors font-bold leading-tight">{action.label}</p>
                                 </div>
                             </Link>
                         );
@@ -145,51 +145,51 @@ export default function DashboardPage() {
                 transition={{ delay: 0.3 }}
             >
                 <div className="flex items-center justify-between mb-4">
-                    <h2 className="text-lg font-bold text-white">Recent Conversions</h2>
-                    <Link href="/dashboard/transactions" className="text-sm text-blue-400 hover:underline flex items-center gap-1">
+                    <h2 className="text-lg font-extrabold text-foreground">Recent Conversions</h2>
+                    <Link href="/dashboard/transactions" className="text-sm font-bold text-primary hover:underline flex items-center gap-1">
                         View All <ArrowRight className="w-3 h-3" />
                     </Link>
                 </div>
-                <div className="bg-gray-900 border border-gray-800 rounded-2xl overflow-hidden">
+                <div className="bg-card border border-border rounded-2xl overflow-hidden shadow-sm">
                     <div className="overflow-x-auto">
                         <table className="w-full">
                             <thead>
-                                <tr className="border-b border-gray-800">
-                                    <th className="text-left px-5 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide">File</th>
-                                    <th className="text-left px-5 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide">Tool</th>
-                                    <th className="text-left px-5 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide">Date</th>
-                                    <th className="text-left px-5 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide">Size</th>
-                                    <th className="text-left px-5 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide">Status</th>
+                                <tr className="border-b border-border bg-secondary/30">
+                                    <th className="text-left px-5 py-3 text-xs font-bold text-muted-foreground uppercase tracking-widest">File</th>
+                                    <th className="text-left px-5 py-3 text-xs font-bold text-muted-foreground uppercase tracking-widest">Tool</th>
+                                    <th className="text-left px-5 py-3 text-xs font-bold text-muted-foreground uppercase tracking-widest">Date</th>
+                                    <th className="text-left px-5 py-3 text-xs font-bold text-muted-foreground uppercase tracking-widest">Size</th>
+                                    <th className="text-left px-5 py-3 text-xs font-bold text-muted-foreground uppercase tracking-widest">Status</th>
                                     <th className="px-5 py-3"></th>
                                 </tr>
                             </thead>
-                            <tbody className="divide-y divide-gray-800">
+                            <tbody className="divide-y divide-border">
                                 {mockHistory.map((item, i) => (
                                     <motion.tr
                                         key={item.id}
                                         initial={{ opacity: 0, x: -10 }}
                                         animate={{ opacity: 1, x: 0 }}
                                         transition={{ delay: 0.3 + i * 0.05 }}
-                                        className="hover:bg-gray-800/50 transition-colors"
+                                        className="hover:bg-secondary/20 transition-colors"
                                     >
-                                        <td className="px-5 py-3">
+                                        <td className="px-5 py-4">
                                             <div className="flex items-center gap-3">
-                                                <div className="w-8 h-8 bg-gray-800 rounded-lg flex items-center justify-center flex-shrink-0">
-                                                    <FileText className="w-4 h-4 text-gray-400" />
+                                                <div className="w-9 h-9 bg-secondary border border-border rounded-lg flex items-center justify-center flex-shrink-0 shadow-sm">
+                                                    <FileText className="w-4 h-4 text-primary" />
                                                 </div>
-                                                <span className="text-gray-200 text-sm font-medium truncate max-w-[120px]">{item.filename}</span>
+                                                <span className="text-foreground text-sm font-bold truncate max-w-[120px]">{item.filename}</span>
                                             </div>
                                         </td>
-                                        <td className="px-5 py-3">
-                                            <span className="text-gray-400 text-sm">{item.tool}</span>
+                                        <td className="px-5 py-4">
+                                            <span className="text-muted-foreground font-semibold text-sm">{item.tool}</span>
                                         </td>
-                                        <td className="px-5 py-3">
-                                            <span className="text-gray-500 text-sm flex items-center gap-1">
+                                        <td className="px-5 py-4">
+                                            <span className="text-muted-foreground font-medium text-sm flex items-center gap-1.5">
                                                 <Clock className="w-3.5 h-3.5" />{item.date}
                                             </span>
                                         </td>
-                                        <td className="px-5 py-3">
-                                            <span className="text-gray-500 text-sm">{item.size}</span>
+                                        <td className="px-5 py-4">
+                                            <span className="text-muted-foreground font-medium text-sm">{item.size}</span>
                                         </td>
                                         <td className="px-5 py-3">
                                             {item.status === "success" ? (
@@ -202,9 +202,9 @@ export default function DashboardPage() {
                                                 </span>
                                             )}
                                         </td>
-                                        <td className="px-5 py-3">
+                                        <td className="px-5 py-4">
                                             {item.status === "success" && (
-                                                <button className="p-1.5 text-gray-500 hover:text-blue-400 hover:bg-blue-500/10 rounded-lg transition-colors">
+                                                <button className="p-2 text-muted-foreground hover:text-primary hover:bg-primary/10 rounded-lg transition-colors border border-transparent hover:border-primary/20">
                                                     <Download className="w-4 h-4" />
                                                 </button>
                                             )}

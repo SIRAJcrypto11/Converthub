@@ -19,7 +19,7 @@ export default function CookiesPage() {
                     <p className="text-xl text-muted-foreground">We value your privacy and aim for full transparency.</p>
                 </div>
 
-                <div className="prose prose-lg dark:prose-invert max-w-none text-muted-foreground space-y-10">
+                <div className="prose prose-lg max-w-none text-muted-foreground space-y-10">
                     <section className="bg-secondary/30 p-8 rounded-[2.5rem] border">
                         <h2 className="text-foreground font-black text-2xl flex items-center gap-3">
                             <ShieldCheck className="w-6 h-6 text-primary" /> Essential Cookies

@@ -19,7 +19,7 @@ export default function TermsPage() {
                     <p className="text-xl text-muted-foreground">Effective Date: February 27, 2026</p>
                 </div>
 
-                <div className="prose prose-lg dark:prose-invert max-w-none text-muted-foreground space-y-10">
+                <div className="prose prose-lg max-w-none text-muted-foreground space-y-10">
                     <section>
                         <h2 className="text-foreground font-black text-3xl flex items-center gap-3">
                             <CheckCircle className="w-7 h-7 text-primary" /> 1. Acceptance

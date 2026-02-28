@@ -88,7 +88,7 @@ export default function AboutPage() {
                 {/* Story Section */}
                 <section className="space-y-8">
                     <h2 className="text-3xl font-extrabold text-center tracking-tight">Our Mission</h2>
-                    <div className="prose prose-lg dark:prose-invert max-w-none text-muted-foreground leading-relaxed text-center">
+                    <div className="prose prose-lg max-w-none text-muted-foreground leading-relaxed text-center">
                         <p className="mb-6">
                             Founded in 2024, ConvertHub was born out of a simple frustration: file converters were too slow,
                             cluttered with ads, and raised significant privacy concerns. We envisioned a tool that

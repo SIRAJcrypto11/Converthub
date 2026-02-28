@@ -43,7 +43,7 @@ export default function PrivacyPage() {
                     </div>
                 </div>
 
-                <div className="prose prose-lg dark:prose-invert max-w-none text-muted-foreground">
+                <div className="prose prose-lg max-w-none text-muted-foreground">
                     <h2 className="text-foreground font-black text-3xl">1. Information We Collect</h2>
                     <p>
                         ConvertHub is designed to be a Zero-Knowledge platform. For standard conversion tools,

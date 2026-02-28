@@ -124,28 +124,28 @@ export default function HeroSection() {
                     className="relative max-w-lg mx-auto mb-10"
                 >
                     <div className="relative">
-                        <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
+                        <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-muted-foreground" />
                         <input
                             type="text"
                             value={search}
                             onChange={(e) => setSearch(e.target.value)}
                             placeholder="Cari tool... (PDF to Word, Compress, Merge...)"
-                            className="w-full pl-12 pr-4 py-4 bg-gray-800 border border-gray-700 rounded-2xl text-gray-200 placeholder-gray-500 focus:outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 transition-all text-sm"
+                            className="w-full pl-12 pr-4 py-4 bg-background border border-border rounded-2xl text-foreground placeholder-muted-foreground focus:outline-none focus:border-primary focus:ring-2 focus:ring-primary/20 transition-all font-medium text-sm shadow-sm hover:shadow-md"
                         />
                     </div>
                     {suggestions.length > 0 && (
                         <motion.div
                             initial={{ opacity: 0, y: -8 }}
                             animate={{ opacity: 1, y: 0 }}
-                            className="absolute top-full mt-2 w-full bg-gray-800 border border-gray-700 rounded-xl shadow-xl z-50 overflow-hidden"
+                            className="absolute top-full mt-2 w-full bg-card border border-border rounded-xl shadow-xl z-50 overflow-hidden"
                         >
                             {suggestions.map((s) => (
                                 <button
                                     key={s.href}
                                     onClick={() => handleSelect(s.href)}
-                                    className="flex items-center gap-3 w-full px-4 py-3 text-left text-gray-300 hover:bg-gray-700 transition-colors text-sm"
+                                    className="flex items-center gap-3 w-full px-4 py-3 text-left text-foreground hover:bg-secondary transition-colors font-bold text-sm"
                                 >
-                                    <FileText className="w-4 h-4 text-blue-400 flex-shrink-0" />
+                                    <FileText className="w-4 h-4 text-primary flex-shrink-0" />
                                     {s.name}
                                 </button>
                             ))}
@@ -168,7 +168,7 @@ export default function HeroSection() {
                         </button>
                     </Link>
                     <Link href="/pricing">
-                        <button className="flex items-center gap-2 px-8 py-4 bg-gray-800 hover:bg-gray-700 text-gray-200 font-semibold rounded-2xl border border-gray-700 hover:border-gray-500 transition-all">
+                        <button className="flex items-center gap-2 px-8 py-4 bg-card hover:bg-secondary text-foreground font-bold rounded-2xl border border-border transition-all shadow-sm">
                             <Shield className="w-5 h-5" />
                             View Pricing
                         </button>
@@ -190,13 +190,13 @@ export default function HeroSection() {
                     ].map(({ icon: Icon, label, value, suffix }) => (
                         <div
                             key={label}
-                            className="bg-gray-800/60 border border-gray-700 rounded-2xl p-5 backdrop-blur-sm"
+                            className="bg-card border border-border rounded-2xl p-5 shadow-sm hover:shadow-md transition-shadow"
                         >
-                            <Icon className="w-6 h-6 text-blue-400 mx-auto mb-2" />
-                            <div className="text-2xl font-bold text-white">
+                            <Icon className="w-6 h-6 text-primary mx-auto mb-2" />
+                            <div className="text-2xl font-black text-foreground">
                                 <AnimatedCounter target={value} suffix={suffix} />
                             </div>
-                            <div className="text-gray-500 text-xs mt-1">{label}</div>
+                            <div className="text-muted-foreground font-bold text-xs mt-1 uppercase tracking-wider">{label}</div>
                         </div>
                     ))}
                 </motion.div>
