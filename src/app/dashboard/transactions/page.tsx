@@ -11,29 +11,40 @@ export default function TransactionsPage() {
     const [transactions, setTransactions] = useState<any[]>([]);
     const [isLoading, setIsLoading] = useState(true);
 
-    useEffect(() => {
-        // In a real app, this would fetch from /api/transactions
-        // For now, we simulate a loading state and show data if it were there
-        const fetchTransactions = async () => {
-            try {
-                // const res = await fetch("/api/transactions");
-                // const data = await res.json();
-                // setTransactions(data);
-
-                // Mocking data for UI verification since API isn't built yet
-                setTransactions([
-                    { id: "tx_1", userEmail: "user@example.com", plan: "Pro", amount: 150000, currency: "IDR", status: "SUCCESS", method: "Bank Transfer", date: "2026-02-27" },
-                    { id: "tx_2", userEmail: "test@test.com", plan: "Pro", amount: 9, currency: "USD", status: "PENDING", method: "PayPal", date: "2026-02-27" },
-                ]);
-            } catch (error) {
-                console.error(error);
-            } finally {
-                setIsLoading(false);
+    const fetchTransactions = async () => {
+        try {
+            const res = await fetch("/api/transactions");
+            if (res.ok) {
+                const data = await res.json();
+                setTransactions(data);
             }
-        };
+        } catch (error) {
+            console.error(error);
+        } finally {
+            setIsLoading(false);
+        }
+    };
 
-        fetchTransactions();
-    }, []);
+    useEffect(() => {
+        if (session?.user) {
+            fetchTransactions();
+        }
+    }, [session]);
+
+    const handleVerify = async (id: string) => {
+        try {
+            const res = await fetch(`/api/transactions/${id}`, {
+                method: "PATCH",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ status: "SUCCESS" }),
+            });
+            if (res.ok) {
+                fetchTransactions();
+            }
+        } catch (error) {
+            console.error(error);
+        }
+    };
 
     const role = session?.user?.role || "USER";
 
@@ -105,24 +116,24 @@ export default function TransactionsPage() {
                                 transactions.map((tx) => (
                                     <tr key={tx.id} className="hover:bg-secondary/20 transition-colors">
                                         <td className="px-6 py-4 font-mono text-xs text-muted-foreground uppercase">{tx.id}</td>
-                                        <td className="px-6 py-4 font-medium">{tx.userEmail}</td>
+                                        <td className="px-6 py-4 font-medium">{tx.user?.email || tx.userEmail || "—"}</td>
                                         <td className="px-6 py-4">
                                             <span className="px-2.5 py-1 rounded-full bg-primary/10 text-primary text-[10px] font-bold uppercase">
-                                                {tx.plan}
+                                                {tx.planName}
                                             </span>
                                         </td>
                                         <td className="px-6 py-4 font-bold">
                                             {tx.currency === "USD" ? `$${tx.amount}` : `Rp${tx.amount.toLocaleString('id-ID')}`}
                                         </td>
                                         <td className="px-6 py-4">
-                                            <div className={`inline-flex items-center gap-1.5 font-bold text-[10px] uppercase ${tx.status === "SUCCESS" ? "text-emerald-500" : "text-amber-500"}`}>
+                                            <div className={`inline-flex items-center gap-1.5 font-bold text-[10px] uppercase ${tx.status === "SUCCESS" ? "text-emerald-500" : tx.status === "FAILED" ? "text-red-500" : "text-amber-500"}`}>
                                                 {tx.status === "SUCCESS" ? <CheckCircle className="w-3 h-3" /> : <Clock className="w-3 h-3" />}
                                                 {tx.status}
                                             </div>
                                         </td>
                                         <td className="px-6 py-4 text-right">
                                             {tx.status === "PENDING" && (
-                                                <button className="px-4 py-1.5 bg-primary text-primary-foreground rounded-lg font-bold text-xs hover:shadow-lg hover:shadow-primary/30 transition-all active:scale-95">
+                                                <button onClick={() => handleVerify(tx.id)} className="px-4 py-1.5 bg-primary text-primary-foreground rounded-lg font-bold text-xs hover:shadow-lg hover:shadow-primary/30 transition-all active:scale-95">
                                                     Verify
                                                 </button>
                                             )}

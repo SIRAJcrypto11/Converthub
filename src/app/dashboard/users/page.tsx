@@ -14,12 +14,11 @@ export default function UsersPage() {
     useEffect(() => {
         const fetchUsers = async () => {
             try {
-                // Mocking data for UI verification
-                setUsers([
-                    { id: "u_1", name: "Siraj Nur Ihrom", email: "siraj@example.com", role: "OWNER", joined: "2026-02-20" },
-                    { id: "u_2", name: "Alice Admin", email: "alice@converthub.com", role: "ADMIN", joined: "2026-02-21" },
-                    { id: "u_3", name: "Bob User", email: "bob@gmail.com", role: "USER", joined: "2026-02-25" },
-                ]);
+                const res = await fetch("/api/users");
+                if (res.ok) {
+                    const data = await res.json();
+                    setUsers(data);
+                }
             } catch (error) {
                 console.error(error);
             } finally {
@@ -27,8 +26,10 @@ export default function UsersPage() {
             }
         };
 
-        fetchUsers();
-    }, []);
+        if (session?.user?.role === "OWNER") {
+            fetchUsers();
+        }
+    }, [session]);
 
     const role = session?.user?.role || "USER";
 
@@ -130,8 +131,8 @@ export default function UsersPage() {
                                         </td>
                                         <td className="px-6 py-4">
                                             <div className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider ${u.role === 'OWNER' ? 'bg-primary/10 text-primary' :
-                                                    u.role === 'ADMIN' ? 'bg-amber-500/10 text-amber-500' :
-                                                        'bg-secondary text-muted-foreground'
+                                                u.role === 'ADMIN' ? 'bg-amber-500/10 text-amber-500' :
+                                                    'bg-secondary text-muted-foreground'
                                                 }`}>
                                                 <Shield className="w-3 h-3" />
                                                 {u.role}

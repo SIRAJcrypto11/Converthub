@@ -32,5 +32,9 @@ This project was built with ❤️ by the team at **[SNISHOP](https://snishop.co
 3. Run the development server: `npm run dev`
 4. Open [http://localhost:3000](http://localhost:3000)
 
+## 📄 License
+
+This project is licensed under the **MIT License** - see the [LICENSE](LICENSE) file for details.
+
 ---
 © 2026 ConvertHub. All rights reserved.
