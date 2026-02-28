@@ -43,50 +43,48 @@ export async function downloadDataUrl(
 }
 
 /**
- * Core download mechanism using the server-side API route.
+ * Core download mechanism using a stateless POST form submission.
  *
- * 1. POSTs blob to /api/download-file → gets key
- * 2. Uses <a download> pointing to GET /api/download-file?key=xxx
- * 3. Server responds with Content-Disposition header
- * 4. Browser downloads with correct filename ✅
+ * This approach is 100% Vercel Serverless compatible because it stores
+ * nothing in memory. It forces the browser to native-POST the blob,
+ * and the Next.js API immediately responds with an attachment header.
  */
 async function triggerServerDownload(
     blob: Blob,
     filename: string
 ): Promise<void> {
-    // Step 1: Upload blob to server temp storage
-    const formData = new FormData();
-    formData.append("file", blob, filename);
-    formData.append("filename", filename);
+    // We cannot set <input type="file"> value directly. 
+    // We must use a DataTransfer object to inject the Blob.
+    const dataTransfer = new DataTransfer();
+    dataTransfer.items.add(new File([blob], filename, { type: blob.type }));
 
-    const response = await fetch("/api/download-file", {
-        method: "POST",
-        body: formData,
-    });
+    // Create a hidden form to submit directly to the API
+    const form = document.createElement("form");
+    form.method = "POST";
+    form.action = "/api/download-file";
+    form.style.display = "none";
 
-    if (!response.ok) {
-        throw new Error("Failed to prepare download");
-    }
+    const fileInput = document.createElement("input");
+    fileInput.type = "file";
+    fileInput.name = "file";
+    fileInput.files = dataTransfer.files;
+    form.appendChild(fileInput);
 
-    const { key } = await response.json();
+    const filenameInput = document.createElement("input");
+    filenameInput.type = "hidden";
+    filenameInput.name = "filename";
+    filenameInput.value = filename;
+    form.appendChild(filenameInput);
 
-    // Step 2: Use anchor element pointing at the API GET URL
-    // The server will respond with Content-Disposition: attachment header
-    const downloadUrl = `/api/download-file?key=${key}`;
+    document.body.appendChild(form);
 
-    const anchor = document.createElement("a");
-    anchor.style.display = "none";
-    anchor.href = downloadUrl;
-    anchor.download = filename; // Belt + suspenders: also set download attr
-    document.body.appendChild(anchor);
-    anchor.click();
+    // Submitting a standard HTML form will force the browser to navigate.
+    // However, because the server responds with 'Content-Disposition: attachment',
+    // the browser intercepts the response as a download and STAYS on the current page.
+    form.submit();
 
-    // Cleanup anchor element after a delay
+    // Cleanup
     setTimeout(() => {
-        try {
-            document.body.removeChild(anchor);
-        } catch {
-            // Ignore if already removed
-        }
-    }, 5000);
+        document.body.removeChild(form);
+    }, 1000);
 }

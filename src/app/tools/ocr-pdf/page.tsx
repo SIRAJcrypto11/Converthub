@@ -1,18 +1,11 @@
 "use client";
 
-import { useState, useRef } from "react";
+import { useState } from "react";
 import { createWorker } from "tesseract.js";
-import * as pdfjs from "pdfjs-dist";
 import { motion, AnimatePresence } from "framer-motion";
 import { ScanText, Download, Plus, X, File as FileIcon, Loader2, AlertCircle, CheckCircle2, Copy, Languages } from "lucide-react";
 import { useDropzone } from "react-dropzone";
 import { cn } from "@/lib/utils";
-
-
-// Initialize PDF.js worker
-if (typeof window !== "undefined" && !pdfjs.GlobalWorkerOptions.workerSrc) {
-    pdfjs.GlobalWorkerOptions.workerSrc = `//unpkg.com/pdfjs-dist@${pdfjs.version}/build/pdf.worker.min.mjs`;
-}
 
 export default function OcrPdfPage() {
     const [file, setFile] = useState<File | null>(null);
@@ -48,6 +41,11 @@ export default function OcrPdfPage() {
         setProgress(0);
 
         try {
+            const pdfjs = await import("pdfjs-dist");
+            if (!pdfjs.GlobalWorkerOptions.workerSrc) {
+                pdfjs.GlobalWorkerOptions.workerSrc = `//unpkg.com/pdfjs-dist@${pdfjs.version}/build/pdf.worker.min.mjs`;
+            }
+
             const arrayBuffer = await file.arrayBuffer();
             const loadingTask = pdfjs.getDocument({ data: arrayBuffer });
             const pdf = await loadingTask.promise;

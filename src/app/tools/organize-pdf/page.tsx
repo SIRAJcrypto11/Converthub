@@ -2,15 +2,10 @@
 
 import { useState, useCallback } from "react";
 import { PDFDocument } from "pdf-lib";
-import * as pdfjsLib from "pdfjs-dist";
 import { motion, Reorder, AnimatePresence } from "framer-motion";
 import { Layout, Download, Plus, X, File as FileIcon, Loader2, GripVertical, AlertCircle, RotateCcw, Trash2, CheckCircle2 } from "lucide-react";
 import { useDropzone } from "react-dropzone";
 import { cn } from "@/lib/utils";
-
-
-// Set worker for pdfjs
-pdfjsLib.GlobalWorkerOptions.workerSrc = `//cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjsLib.version}/pdf.worker.min.js`;
 
 interface PDFPageItem {
     id: string;
@@ -31,6 +26,11 @@ export default function OrganizePdfPage() {
     const generateThumbnails = async (file: File, pdfIndex: number) => {
         setIsLoadingThumbnails(true);
         try {
+            const pdfjsLib = await import("pdfjs-dist");
+            if (!pdfjsLib.GlobalWorkerOptions.workerSrc) {
+                pdfjsLib.GlobalWorkerOptions.workerSrc = `//cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjsLib.version}/pdf.worker.min.js`;
+            }
+
             const arrayBuffer = await file.arrayBuffer();
             setFileBuffers(prev => new Map(prev).set(pdfIndex, arrayBuffer));
 
