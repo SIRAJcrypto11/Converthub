@@ -1,17 +1,11 @@
 /**
- * ConvertHub — Smart PDF-to-Word Layout Reconstruction Engine
+ * ConvertHub — PDF-to-Word Conversion Engine (v2)
  *
- * This module analyses the raw positional text data from pdfjs-dist
- * and reconstructs a semantically structured document that the `docx`
- * library can then render into a properly formatted .docx file.
- *
- * Algorithms:
- *   1. Line Detection       – Y-coordinate grouping (±tolerance)
- *   2. Word Spacing          – X-gap analysis for proper spaces
- *   3. Paragraph Detection   – Vertical gap exceeding 1.5× line height
- *   4. Font/Style Detection  – fontName parsing for bold / italic
- *   5. Heading Inference      – fontSize comparison to body median
- *   6. List Detection         – Bullet / numbered prefix matching
+ * TWO MODES:
+ *   1. "preserve" — Renders each PDF page as a high-resolution image
+ *      and embeds it in Word → 100% visual fidelity.
+ *   2. "editable" — Reconstructs text layout from positional data →
+ *      editable text but may lose some formatting.
  */
 
 import {
@@ -19,22 +13,195 @@ import {
     Packer,
     Paragraph,
     TextRun,
+    ImageRun,
     HeadingLevel,
     PageBreak,
+    SectionType,
 } from "docx";
 
-// ─── Types ──────────────────────────────────────────────────────────────────
+// ─── Public Types ───────────────────────────────────────────────────────────
 
-export interface RawTextItem {
-    str: string;
-    dir: string;
-    // transform: [scaleX, skewX, skewY, scaleY, translateX, translateY]
-    transform: number[];
-    width: number;
-    height: number;
-    fontName: string;
-    hasEOL: boolean;
+export type ConversionMode = "preserve" | "editable";
+
+export interface ConversionProgress {
+    stage: "reading" | "rendering" | "analyzing" | "building" | "complete";
+    percent: number;
+    message: string;
 }
+
+// ─── Constants ──────────────────────────────────────────────────────────────
+
+const RENDER_SCALE = 2; // 2× for crisp high-DPI images
+const LINE_Y_TOLERANCE = 3;
+const PARAGRAPH_GAP_FACTOR = 1.4;
+const HEADING_SIZE_FACTOR = 1.25;
+const MIN_SPACE_FACTOR = 0.25;
+
+// A4 dimensions in EMU (English Metric Unit, 1 inch = 914400 EMU)
+// A4 = 210mm × 297mm. With 0.5-inch margin on each side:
+// Image area = ~190mm × ~267mm ≈ 7.48" × 10.51"
+const PAGE_IMAGE_WIDTH_PX = Math.round(7.48 * 72 * RENDER_SCALE);  // pixels at render scale
+const PAGE_IMAGE_HEIGHT_PX = Math.round(10.51 * 72 * RENDER_SCALE);
+
+// Word dimensions (in points for ImageRun transformation)
+const WORD_IMAGE_WIDTH = Math.round(7.48 * 72);   // ~539 points
+const WORD_IMAGE_HEIGHT = Math.round(10.51 * 72);  // ~757 points
+
+// ─── Helper: Load pdfjs ─────────────────────────────────────────────────────
+
+async function loadPdfJs() {
+    const pdfjs = await import("pdfjs-dist");
+    if (!pdfjs.GlobalWorkerOptions.workerSrc) {
+        pdfjs.GlobalWorkerOptions.workerSrc = `//unpkg.com/pdfjs-dist@${pdfjs.version}/build/pdf.worker.min.mjs`;
+    }
+    return pdfjs;
+}
+
+// ─── Helper: Canvas → PNG Uint8Array ────────────────────────────────────────
+
+function canvasToUint8Array(canvas: HTMLCanvasElement): Promise<Uint8Array> {
+    return new Promise((resolve, reject) => {
+        canvas.toBlob(
+            (blob) => {
+                if (!blob) {
+                    reject(new Error("Failed to convert canvas to PNG"));
+                    return;
+                }
+                const reader = new FileReader();
+                reader.onload = () => {
+                    const arrayBuffer = reader.result as ArrayBuffer;
+                    resolve(new Uint8Array(arrayBuffer));
+                };
+                reader.onerror = () => reject(new Error("Failed to read canvas blob"));
+                reader.readAsArrayBuffer(blob);
+            },
+            "image/png",
+            1.0
+        );
+    });
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// MODE 1: PRESERVE FORMAT (Image-Based) — DEFAULT
+// ═══════════════════════════════════════════════════════════════════════════
+
+async function convertVisual(
+    file: File,
+    onProgress?: (p: ConversionProgress) => void
+): Promise<Blob> {
+    const report = (
+        stage: ConversionProgress["stage"],
+        percent: number,
+        message: string
+    ) => onProgress?.({ stage, percent, message });
+
+    // ── Load PDF ──
+    report("reading", 5, "Loading PDF...");
+    const pdfjs = await loadPdfJs();
+    const arrayBuffer = await file.arrayBuffer();
+    const pdf = await (pdfjs.getDocument({ data: arrayBuffer })).promise;
+    const numPages = pdf.numPages;
+    report("reading", 10, `PDF loaded — ${numPages} page(s)`);
+
+    // ── Render each page to high-res PNG ──
+    const pageImages: { data: Uint8Array; width: number; height: number }[] = [];
+
+    for (let pageNum = 1; pageNum <= numPages; pageNum++) {
+        const pct = 10 + Math.round((pageNum / numPages) * 60);
+        report("rendering", pct, `Rendering page ${pageNum} of ${numPages}...`);
+
+        const page = await pdf.getPage(pageNum);
+        const viewport = page.getViewport({ scale: RENDER_SCALE });
+
+        // Create off-screen canvas
+        const canvas = document.createElement("canvas");
+        canvas.width = viewport.width;
+        canvas.height = viewport.height;
+        const ctx = canvas.getContext("2d");
+        if (!ctx) throw new Error("Cannot create canvas context");
+
+        // Render PDF page to canvas
+        await page.render({ canvasContext: ctx as any, canvas: canvas as any, viewport: viewport as any }).promise;
+
+        // Convert to PNG bytes
+        const pngData = await canvasToUint8Array(canvas);
+        pageImages.push({
+            data: pngData,
+            width: viewport.width / RENDER_SCALE,  // original point width
+            height: viewport.height / RENDER_SCALE, // original point height
+        });
+
+        // Clean up canvas
+        canvas.width = 0;
+        canvas.height = 0;
+    }
+
+    // ── Build DOCX with embedded images ──
+    report("building", 75, "Building Word document...");
+
+    const sections = pageImages.map((img, index) => {
+        // Calculate image dimensions to fit the page while preserving aspect ratio
+        const aspectRatio = img.width / img.height;
+        let imgWidth = WORD_IMAGE_WIDTH;
+        let imgHeight = Math.round(imgWidth / aspectRatio);
+
+        // If image is taller than page area, scale down
+        if (imgHeight > WORD_IMAGE_HEIGHT) {
+            imgHeight = WORD_IMAGE_HEIGHT;
+            imgWidth = Math.round(imgHeight * aspectRatio);
+        }
+
+        return {
+            properties: {
+                page: {
+                    size: {
+                        width: Math.round(img.width * 20),  // twips (1pt = 20 twips)
+                        height: Math.round(img.height * 20),
+                    },
+                    margin: {
+                        top: 360,    // 0.25 inch
+                        right: 360,
+                        bottom: 360,
+                        left: 360,
+                    },
+                },
+            },
+            children: [
+                new Paragraph({
+                    children: [
+                        new ImageRun({
+                            data: img.data,
+                            transformation: {
+                                width: imgWidth,
+                                height: imgHeight,
+                            },
+                            type: "png",
+                        }),
+                    ],
+                    spacing: { after: 0, before: 0 },
+                }),
+            ],
+        };
+    });
+
+    const doc = new Document({
+        creator: "ConvertHub",
+        title: file.name.replace(/\.pdf$/i, ""),
+        description: "Converted from PDF by ConvertHub — Format Preserved",
+        sections,
+    });
+
+    report("building", 90, "Packaging DOCX...");
+    const blob = await Packer.toBlob(doc);
+    report("complete", 100, "Conversion complete!");
+    return blob;
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// MODE 2: EDITABLE TEXT (Layout Reconstruction)
+// ═══════════════════════════════════════════════════════════════════════════
+
+// ─ Types ─
 
 interface ExtractedItem {
     str: string;
@@ -44,623 +211,356 @@ interface ExtractedItem {
     height: number;
     fontSize: number;
     fontName: string;
-    hasEOL: boolean;
 }
 
 interface TextLine {
     items: ExtractedItem[];
     y: number;
-    minX: number;
-    maxX: number;
     avgFontSize: number;
     text: string;
     isBold: boolean;
     isItalic: boolean;
 }
 
-interface DocParagraph {
+interface RunInfo {
     text: string;
+    bold: boolean;
+    italic: boolean;
+    fontSize: number;
+    fontFamily: string;
+}
+
+interface DocParagraph {
     runs: RunInfo[];
     isHeading: boolean;
     headingLevel: 1 | 2 | 3;
     isList: boolean;
     listPrefix: string;
-    alignment: "left" | "center" | "right";
-    isPageBreak: boolean;
 }
 
-interface RunInfo {
-    text: string;
-    bold: boolean;
-    italic: boolean;
-    fontSize: number; // in half-points for docx
-    fontFamily: string;
-}
+// ─ Font detection ─
 
-interface FontStyleMap {
-    [fontName: string]: { bold: boolean; italic: boolean; family: string };
-}
-
-// ─── Constants ──────────────────────────────────────────────────────────────
-
-const LINE_Y_TOLERANCE = 3; // px tolerance for same-line detection
-const PARAGRAPH_GAP_FACTOR = 1.4; // gap > factor × lineHeight = new paragraph
-const HEADING_SIZE_FACTOR = 1.25; // fontSize > factor × median = heading
-const MIN_SPACE_FACTOR = 0.25; // gap > factor × charWidth = needs space
-
-// ─── Font Detection ─────────────────────────────────────────────────────────
-
-function parseFontStyle(fontName: string): {
-    bold: boolean;
-    italic: boolean;
-    family: string;
-} {
+function parseFontStyle(fontName: string) {
     const lower = fontName.toLowerCase();
+    const bold = lower.includes("bold") || lower.includes("heavy") || lower.includes("black") || lower.includes("semibold");
+    const italic = lower.includes("italic") || lower.includes("oblique");
 
-    const bold =
-        lower.includes("bold") ||
-        lower.includes("heavy") ||
-        lower.includes("black") ||
-        lower.includes("semibold") ||
-        lower.includes("demibold");
-
-    const italic =
-        lower.includes("italic") ||
-        lower.includes("oblique") ||
-        lower.includes("slant");
-
-    // Try to extract a human-readable font family
-    let family = "Calibri"; // default
-    if (lower.includes("times") || lower.includes("serif")) {
-        family = "Times New Roman";
-    } else if (lower.includes("arial") || lower.includes("helvetica") || lower.includes("sans")) {
-        family = "Arial";
-    } else if (lower.includes("courier") || lower.includes("mono")) {
-        family = "Courier New";
-    } else if (lower.includes("calibri")) {
-        family = "Calibri";
-    } else if (lower.includes("cambria")) {
-        family = "Cambria";
-    } else if (lower.includes("georgia")) {
-        family = "Georgia";
-    } else if (lower.includes("garamond")) {
-        family = "Garamond";
-    } else if (lower.includes("verdana")) {
-        family = "Verdana";
-    } else if (lower.includes("tahoma")) {
-        family = "Tahoma";
-    } else if (lower.includes("trebuchet")) {
-        family = "Trebuchet MS";
-    }
+    let family = "Calibri";
+    if (lower.includes("times") || lower.includes("serif")) family = "Times New Roman";
+    else if (lower.includes("arial") || lower.includes("helvetica") || lower.includes("sans")) family = "Arial";
+    else if (lower.includes("courier") || lower.includes("mono")) family = "Courier New";
+    else if (lower.includes("calibri")) family = "Calibri";
+    else if (lower.includes("cambria")) family = "Cambria";
+    else if (lower.includes("georgia")) family = "Georgia";
+    else if (lower.includes("verdana")) family = "Verdana";
 
     return { bold, italic, family };
 }
 
-// ─── Step 1: Extract structured items from pdfjs textContent ────────────────
+// ─ Extraction ─
 
 function extractItems(textContent: any): ExtractedItem[] {
     const items: ExtractedItem[] = [];
-
     for (const item of textContent.items) {
-        if (!item.str && !item.hasEOL) continue; // skip empty non-EOL items
-
+        if (!item.str) continue;
         const t = item.transform;
-        // transform: [scaleX, skewX, skewY, scaleY, translateX, translateY]
         const fontSize = Math.abs(t[0]) || Math.abs(t[3]) || 12;
-
         items.push({
-            str: item.str || "",
+            str: item.str,
             x: t[4],
             y: t[5],
             width: item.width || 0,
             height: item.height || fontSize,
             fontSize,
             fontName: item.fontName || "",
-            hasEOL: item.hasEOL || false,
         });
     }
-
     return items;
 }
 
-// ─── Step 2: Group items into lines by Y-coordinate ─────────────────────────
+// ─ Line grouping ─
 
 function groupIntoLines(items: ExtractedItem[]): TextLine[] {
     if (items.length === 0) return [];
 
-    // Sort by Y descending (PDF coordinate: Y=0 is bottom), then by X ascending
     const sorted = [...items].sort((a, b) => {
-        const yDiff = b.y - a.y; // higher Y = higher on page
+        const yDiff = b.y - a.y;
         if (Math.abs(yDiff) > LINE_Y_TOLERANCE) return yDiff;
-        return a.x - b.x; // left to right
+        return a.x - b.x;
     });
 
     const lines: TextLine[] = [];
-    let currentLine: ExtractedItem[] = [sorted[0]];
+    let current: ExtractedItem[] = [sorted[0]];
     let currentY = sorted[0].y;
 
     for (let i = 1; i < sorted.length; i++) {
         const item = sorted[i];
-
         if (Math.abs(item.y - currentY) <= LINE_Y_TOLERANCE) {
-            // Same line
-            currentLine.push(item);
+            current.push(item);
         } else {
-            // Finalize current line and start new one
-            lines.push(buildLine(currentLine));
-            currentLine = [item];
+            lines.push(buildLine(current));
+            current = [item];
             currentY = item.y;
         }
     }
-
-    // Finalize last line
-    if (currentLine.length > 0) {
-        lines.push(buildLine(currentLine));
-    }
-
+    if (current.length > 0) lines.push(buildLine(current));
     return lines;
 }
 
 function buildLine(items: ExtractedItem[]): TextLine {
-    // Sort items within line by X position (left to right)
     items.sort((a, b) => a.x - b.x);
 
-    // Build text with proper spacing
     let text = "";
     for (let i = 0; i < items.length; i++) {
-        const item = items[i];
-
         if (i > 0) {
             const prev = items[i - 1];
-            const gap = item.x - (prev.x + prev.width);
-            const avgCharWidth =
-                prev.str.length > 0 ? prev.width / prev.str.length : prev.fontSize * 0.5;
-
-            // Insert space if gap is significant
-            if (gap > avgCharWidth * MIN_SPACE_FACTOR) {
-                text += " ";
-            }
+            const gap = items[i].x - (prev.x + prev.width);
+            const avgCW = prev.str.length > 0 ? prev.width / prev.str.length : prev.fontSize * 0.5;
+            if (gap > avgCW * MIN_SPACE_FACTOR) text += " ";
         }
-
-        text += item.str;
+        text += items[i].str;
     }
 
-    // Detect predominant font style
-    const fontVotes = items.reduce(
-        (acc, item) => {
-            const style = parseFontStyle(item.fontName);
-            if (style.bold) acc.boldCount++;
-            if (style.italic) acc.italicCount++;
-            acc.total++;
-            return acc;
+    const fonts = items.reduce(
+        (a, item) => {
+            const s = parseFontStyle(item.fontName);
+            if (s.bold) a.b++;
+            if (s.italic) a.i++;
+            a.t++;
+            return a;
         },
-        { boldCount: 0, italicCount: 0, total: 0 }
+        { b: 0, i: 0, t: 0 }
     );
-
-    const isBold = fontVotes.boldCount > fontVotes.total * 0.5;
-    const isItalic = fontVotes.italicCount > fontVotes.total * 0.5;
-
-    // Average font size for the line
-    const avgFontSize =
-        items.reduce((sum, item) => sum + item.fontSize, 0) / items.length;
-
-    // Positions
-    const minX = Math.min(...items.map((item) => item.x));
-    const maxX = Math.max(...items.map((item) => item.x + item.width));
 
     return {
         items,
         y: items[0].y,
-        minX,
-        maxX,
-        avgFontSize,
+        avgFontSize: items.reduce((s, it) => s + it.fontSize, 0) / items.length,
         text: text.trim(),
-        isBold,
-        isItalic,
+        isBold: fonts.b > fonts.t * 0.5,
+        isItalic: fonts.i > fonts.t * 0.5,
     };
 }
 
-// ─── Step 3: Group lines into paragraphs ────────────────────────────────────
+// ─ Paragraph grouping ─
 
-function groupIntoParagraphs(
-    lines: TextLine[],
-    pageWidth: number
-): DocParagraph[] {
+function groupIntoParagraphs(lines: TextLine[], pageWidth: number): DocParagraph[] {
     if (lines.length === 0) return [];
 
-    // Calculate median font size (= body text size)
-    const fontSizes = lines.map((l) => l.avgFontSize).sort((a, b) => a - b);
-    const medianFontSize = fontSizes[Math.floor(fontSizes.length / 2)] || 12;
+    const sizes = lines.map((l) => l.avgFontSize).sort((a, b) => a - b);
+    const medianSize = sizes[Math.floor(sizes.length / 2)] || 12;
 
-    // Calculate typical line height from consecutive lines
-    const lineGaps: number[] = [];
+    const gaps: number[] = [];
     for (let i = 0; i < lines.length - 1; i++) {
-        const gap = Math.abs(lines[i].y - lines[i + 1].y);
-        if (gap > 0 && gap < medianFontSize * 4) {
-            lineGaps.push(gap);
-        }
+        const g = Math.abs(lines[i].y - lines[i + 1].y);
+        if (g > 0 && g < medianSize * 4) gaps.push(g);
     }
-    const typicalLineHeight =
-        lineGaps.length > 0
-            ? lineGaps.sort((a, b) => a - b)[Math.floor(lineGaps.length / 2)]
-            : medianFontSize * 1.2;
+    const typicalGap = gaps.length > 0
+        ? gaps.sort((a, b) => a - b)[Math.floor(gaps.length / 2)]
+        : medianSize * 1.2;
 
     const paragraphs: DocParagraph[] = [];
     let currentRuns: RunInfo[] = [];
     let currentText = "";
-    let isCurrentBold = lines[0].isBold;
-    let isCurrentItalic = lines[0].isItalic;
-    let currentFontSize = lines[0].avgFontSize;
+    let prevSize = lines[0].avgFontSize;
+    let prevBold = lines[0].isBold;
 
     for (let i = 0; i < lines.length; i++) {
         const line = lines[i];
-        const lineText = line.text;
+        if (!line.text) continue;
 
-        if (!lineText) continue; // skip empty lines
-
-        // Detect if this is a paragraph break
-        let isParagraphBreak = false;
+        let isBreak = false;
         if (i > 0) {
             const gap = Math.abs(lines[i - 1].y - line.y);
-            isParagraphBreak = gap > typicalLineHeight * PARAGRAPH_GAP_FACTOR;
+            isBreak = gap > typicalGap * PARAGRAPH_GAP_FACTOR;
         }
 
-        // Detect style change that should force a new paragraph
-        const hasStyleChange =
-            i > 0 &&
-            (Math.abs(line.avgFontSize - currentFontSize) > 1 ||
-                line.isBold !== isCurrentBold);
+        const styleChanged = i > 0 && (
+            Math.abs(line.avgFontSize - prevSize) > 1 || line.isBold !== prevBold
+        );
 
-        if ((isParagraphBreak || hasStyleChange) && currentText.length > 0) {
-            // Finalize current paragraph
-            paragraphs.push(
-                buildParagraph(currentText, currentRuns, medianFontSize, pageWidth)
-            );
+        if ((isBreak || styleChanged) && currentText.length > 0) {
+            paragraphs.push(finalizeParagraph(currentText, currentRuns, medianSize));
             currentRuns = [];
             currentText = "";
         }
 
-        // Build run for this line
-        const fontStyle = line.items[0]
-            ? parseFontStyle(line.items[0].fontName)
-            : { bold: false, italic: false, family: "Calibri" };
-
-        // Create runs with inline style changes within the line
         const lineRuns = buildLineRuns(line);
-
-        // If continuing a paragraph, add a space before this line
-        if (currentText.length > 0) {
-            currentText += " ";
-            // Add a space run
-            currentRuns.push({
-                text: " ",
-                bold: lineRuns[0]?.bold || false,
-                italic: lineRuns[0]?.italic || false,
-                fontSize: Math.round(line.avgFontSize * 2), // half-points
-                fontFamily: fontStyle.family,
-            });
-        }
-
+        if (currentText.length > 0) currentText += " ";
         currentRuns.push(...lineRuns);
-        currentText += lineText;
-        isCurrentBold = line.isBold;
-        isCurrentItalic = line.isItalic;
-        currentFontSize = line.avgFontSize;
+        currentText += line.text;
+        prevSize = line.avgFontSize;
+        prevBold = line.isBold;
     }
 
-    // Finalize last paragraph
     if (currentText.length > 0) {
-        paragraphs.push(
-            buildParagraph(currentText, currentRuns, medianFontSize, pageWidth)
-        );
+        paragraphs.push(finalizeParagraph(currentText, currentRuns, medianSize));
     }
 
     return paragraphs;
 }
 
 function buildLineRuns(line: TextLine): RunInfo[] {
-    // Group consecutive items with the same font style into runs
     const runs: RunInfo[] = [];
-    let currentRunText = "";
-    let currentStyle = line.items[0]
-        ? parseFontStyle(line.items[0].fontName)
-        : { bold: false, italic: false, family: "Calibri" };
-    let currentSize = line.items[0]?.fontSize || 12;
+    let runText = "";
+    let curStyle = line.items[0] ? parseFontStyle(line.items[0].fontName) : { bold: false, italic: false, family: "Calibri" };
+    let curSize = line.items[0]?.fontSize || 12;
 
     for (let i = 0; i < line.items.length; i++) {
         const item = line.items[i];
         const style = parseFontStyle(item.fontName);
 
-        // Check if style changed
-        if (
-            style.bold !== currentStyle.bold ||
-            style.italic !== currentStyle.italic ||
-            Math.abs(item.fontSize - currentSize) > 1
-        ) {
-            // Finalize current run
-            if (currentRunText) {
-                runs.push({
-                    text: currentRunText,
-                    bold: currentStyle.bold,
-                    italic: currentStyle.italic,
-                    fontSize: Math.round(currentSize * 2), // half-points
-                    fontFamily: currentStyle.family,
-                });
-            }
-            currentRunText = "";
-            currentStyle = style;
-            currentSize = item.fontSize;
+        if (style.bold !== curStyle.bold || style.italic !== curStyle.italic || Math.abs(item.fontSize - curSize) > 1) {
+            if (runText) runs.push({ text: runText, bold: curStyle.bold, italic: curStyle.italic, fontSize: Math.round(curSize * 2), fontFamily: curStyle.family });
+            runText = "";
+            curStyle = style;
+            curSize = item.fontSize;
         }
 
-        // Add spacing
         if (i > 0) {
             const prev = line.items[i - 1];
             const gap = item.x - (prev.x + prev.width);
-            const avgCharWidth =
-                prev.str.length > 0 ? prev.width / prev.str.length : prev.fontSize * 0.5;
-            if (gap > avgCharWidth * MIN_SPACE_FACTOR) {
-                currentRunText += " ";
-            }
+            const avgCW = prev.str.length > 0 ? prev.width / prev.str.length : prev.fontSize * 0.5;
+            if (gap > avgCW * MIN_SPACE_FACTOR) runText += " ";
         }
-
-        currentRunText += item.str;
+        runText += item.str;
     }
 
-    // Finalize last run
-    if (currentRunText) {
-        runs.push({
-            text: currentRunText,
-            bold: currentStyle.bold,
-            italic: currentStyle.italic,
-            fontSize: Math.round(currentSize * 2), // half-points
-            fontFamily: currentStyle.family,
-        });
-    }
-
+    if (runText) runs.push({ text: runText, bold: curStyle.bold, italic: curStyle.italic, fontSize: Math.round(curSize * 2), fontFamily: curStyle.family });
     return runs;
 }
 
-function buildParagraph(
-    text: string,
-    runs: RunInfo[],
-    medianFontSize: number,
-    pageWidth: number
-): DocParagraph {
-    // Detect heading
-    const avgRunSize =
-        runs.length > 0
-            ? runs.reduce((sum, r) => sum + r.fontSize, 0) / runs.length / 2 // convert back from half-points
-            : medianFontSize;
-
-    const sizeRatio = avgRunSize / medianFontSize;
-    const isHeading = sizeRatio >= HEADING_SIZE_FACTOR;
-
+function finalizeParagraph(text: string, runs: RunInfo[], medianSize: number): DocParagraph {
+    const avgSize = runs.length > 0 ? runs.reduce((s, r) => s + r.fontSize, 0) / runs.length / 2 : medianSize;
+    const ratio = avgSize / medianSize;
+    const isHeading = ratio >= HEADING_SIZE_FACTOR;
     let headingLevel: 1 | 2 | 3 = 3;
-    if (sizeRatio >= 1.8) headingLevel = 1;
-    else if (sizeRatio >= 1.5) headingLevel = 2;
-    else headingLevel = 3;
+    if (ratio >= 1.8) headingLevel = 1;
+    else if (ratio >= 1.5) headingLevel = 2;
 
-    // Detect list
-    const listMatch = text.match(
-        /^(\s*)([\u2022\u2023\u25E6\u2043\u2219•\-\*]|\d+[.)]\s|[a-zA-Z][.)]\s)/
-    );
+    const listMatch = text.match(/^(\s*)([\u2022\u2023\u25E6\u2043\u2219•\-\*]|\d+[.)]\s|[a-zA-Z][.)]\s)/);
     const isList = !!listMatch;
     const listPrefix = listMatch ? listMatch[2] : "";
 
-    // Detect alignment (crude: check if text is centered relative to page)
-    let alignment: "left" | "center" | "right" = "left";
-    // We'll default to left for now; alignment detection is complex
-
     return {
-        text,
-        runs: runs.length > 0
-            ? runs
-            : [
-                {
-                    text,
-                    bold: false,
-                    italic: false,
-                    fontSize: Math.round(medianFontSize * 2),
-                    fontFamily: "Calibri",
-                },
-            ],
+        runs: runs.length > 0 ? runs : [{ text, bold: false, italic: false, fontSize: Math.round(medianSize * 2), fontFamily: "Calibri" }],
         isHeading,
         headingLevel,
         isList,
         listPrefix,
-        alignment,
-        isPageBreak: false,
     };
 }
 
-// ─── Step 4: Convert paragraphs to docx Paragraph objects ──────────────────
+// ─ Convert paragraphs to docx ─
 
 function toDocxParagraphs(paragraphs: DocParagraph[]): Paragraph[] {
-    const result: Paragraph[] = [];
+    return paragraphs.map((p) => {
+        const children = p.runs.map((r) => new TextRun({
+            text: r.text,
+            bold: r.bold,
+            italics: r.italic,
+            size: r.fontSize,
+            font: r.fontFamily,
+        }));
 
-    for (const p of paragraphs) {
-        if (p.isPageBreak) {
-            result.push(
-                new Paragraph({
-                    children: [new PageBreak()],
-                })
-            );
-            continue;
-        }
-
-        const children: TextRun[] = p.runs.map((run) => {
-            return new TextRun({
-                text: run.text,
-                bold: run.bold,
-                italics: run.italic,
-                size: run.fontSize, // half-points
-                font: run.fontFamily,
-            });
-        });
-
-        // Build heading level if applicable
         let heading: (typeof HeadingLevel)[keyof typeof HeadingLevel] | undefined;
         if (p.isHeading) {
-            switch (p.headingLevel) {
-                case 1:
-                    heading = HeadingLevel.HEADING_1;
-                    break;
-                case 2:
-                    heading = HeadingLevel.HEADING_2;
-                    break;
-                case 3:
-                    heading = HeadingLevel.HEADING_3;
-                    break;
-            }
+            heading = p.headingLevel === 1 ? HeadingLevel.HEADING_1 : p.headingLevel === 2 ? HeadingLevel.HEADING_2 : HeadingLevel.HEADING_3;
         }
 
-        // Adjust children for list items
-        if (p.isList && children.length > 0 && p.listPrefix) {
-            const firstRunText = p.runs[0].text;
-            const cleaned = firstRunText.replace(p.listPrefix, "").trimStart();
-            children[0] = new TextRun({
-                text: `${p.listPrefix} ${cleaned}`,
-                bold: p.runs[0].bold,
-                italics: p.runs[0].italic,
-                size: p.runs[0].fontSize,
-                font: p.runs[0].fontFamily,
-            });
-        }
-
-        // Construct final options as a single immutable object
-        const spacing = p.isHeading
-            ? { after: 200, before: 240 }
-            : { after: 120, line: 276 };
-
-        const indent = p.isList ? { left: 720 } : undefined;
-
-        result.push(
-            new Paragraph({
-                children,
-                spacing,
-                heading,
-                indent,
-            })
-        );
-    }
-
-    return result;
+        return new Paragraph({
+            children,
+            heading,
+            spacing: p.isHeading ? { after: 200, before: 240 } : { after: 120, line: 276 },
+            indent: p.isList ? { left: 720 } : undefined,
+        });
+    });
 }
 
-// ─── Public API ─────────────────────────────────────────────────────────────
+// ─ Editable text conversion ─
 
-export interface ConversionProgress {
-    stage: "reading" | "analyzing" | "building" | "complete";
-    percent: number;
-    message: string;
-}
-
-/**
- * Converts a PDF file to a DOCX Blob using smart layout reconstruction.
- *
- * @param file        The PDF file to convert.
- * @param onProgress  Callback for progress updates.
- * @returns           A Blob containing the DOCX file.
- */
-export async function convertPdfToDocx(
+async function convertEditable(
     file: File,
-    onProgress?: (progress: ConversionProgress) => void
+    onProgress?: (p: ConversionProgress) => void
 ): Promise<Blob> {
-    const report = (
-        stage: ConversionProgress["stage"],
-        percent: number,
-        message: string
-    ) => {
+    const report = (stage: ConversionProgress["stage"], percent: number, message: string) =>
         onProgress?.({ stage, percent, message });
-    };
 
-    // ── Stage 1: Load PDF ──
     report("reading", 5, "Loading PDF...");
-
-    const pdfjs = await import("pdfjs-dist");
-    if (!pdfjs.GlobalWorkerOptions.workerSrc) {
-        pdfjs.GlobalWorkerOptions.workerSrc = `//unpkg.com/pdfjs-dist@${pdfjs.version}/build/pdf.worker.min.mjs`;
-    }
-
+    const pdfjs = await loadPdfJs();
     const arrayBuffer = await file.arrayBuffer();
-    const loadingTask = pdfjs.getDocument({ data: arrayBuffer });
-    const pdf = await loadingTask.promise;
+    const pdf = await (pdfjs.getDocument({ data: arrayBuffer })).promise;
     const numPages = pdf.numPages;
+    report("reading", 15, `PDF loaded — ${numPages} page(s)`);
 
-    report("reading", 15, `PDF loaded — ${numPages} page(s) detected`);
-
-    // ── Stage 2: Extract and analyse each page ──
     const allSections: Paragraph[][] = [];
 
     for (let pageNum = 1; pageNum <= numPages; pageNum++) {
-        const pagePercent = 15 + Math.round((pageNum / numPages) * 50);
-        report(
-            "analyzing",
-            pagePercent,
-            `Analyzing page ${pageNum} of ${numPages}...`
-        );
+        const pct = 15 + Math.round((pageNum / numPages) * 50);
+        report("analyzing", pct, `Analyzing page ${pageNum} of ${numPages}...`);
 
         const page = await pdf.getPage(pageNum);
         const viewport = page.getViewport({ scale: 1 });
         const textContent = await page.getTextContent();
-
-        // Extract structured items
         const items = extractItems(textContent);
 
         if (items.length === 0) {
-            // Empty page or scanned image — add a note
             allSections.push([
                 new Paragraph({
-                    children: [
-                        new TextRun({
-                            text: `[Page ${pageNum} — no extractable text detected. This page may contain scanned images. Use the OCR tool for scanned documents.]`,
-                            italics: true,
-                            color: "999999",
-                            size: 20,
-                        }),
-                    ],
-                    spacing: { after: 200 },
+                    children: [new TextRun({
+                        text: `[Page ${pageNum} — no text detected. Use OCR for scanned documents.]`,
+                        italics: true,
+                        color: "999999",
+                        size: 20,
+                    })],
                 }),
             ]);
             continue;
         }
 
-        // Group into lines
         const lines = groupIntoLines(items);
-
-        // Group lines into paragraphs
         const paragraphs = groupIntoParagraphs(lines, viewport.width);
-
-        // Convert to docx paragraphs
-        const docxParagraphs = toDocxParagraphs(paragraphs);
-
-        allSections.push(docxParagraphs);
+        allSections.push(toDocxParagraphs(paragraphs));
     }
 
-    // ── Stage 3: Build DOCX ──
-    report("building", 75, "Constructing Word document...");
+    report("building", 75, "Building Word document...");
 
-    // Build sections with page breaks between pages
-    const sections = allSections.map((pageParagraphs, index) => {
-        return {
-            properties:
-                index > 0
-                    ? { page: { margin: { top: 1440, right: 1440, bottom: 1440, left: 1440 } } }
-                    : { page: { margin: { top: 1440, right: 1440, bottom: 1440, left: 1440 } } },
-            children: pageParagraphs,
-        };
-    });
+    const sections = allSections.map((children) => ({
+        properties: { page: { margin: { top: 1440, right: 1440, bottom: 1440, left: 1440 } } },
+        children,
+    }));
 
     const doc = new Document({
         creator: "ConvertHub",
         title: file.name.replace(/\.pdf$/i, ""),
-        description: "Converted from PDF by ConvertHub",
+        description: "Converted from PDF by ConvertHub — Editable Text",
         sections,
     });
 
-    report("building", 90, "Packaging DOCX file...");
+    report("building", 90, "Packaging DOCX...");
     const blob = await Packer.toBlob(doc);
-
     report("complete", 100, "Conversion complete!");
     return blob;
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// PUBLIC API
+// ═══════════════════════════════════════════════════════════════════════════
+
+/**
+ * Converts a PDF file to a DOCX Blob.
+ *
+ * @param file       The PDF file to convert.
+ * @param mode       "preserve" = image-based (perfect format), "editable" = text extraction.
+ * @param onProgress Callback for progress updates.
+ */
+export async function convertPdfToDocx(
+    file: File,
+    mode: ConversionMode = "preserve",
+    onProgress?: (progress: ConversionProgress) => void
+): Promise<Blob> {
+    if (mode === "preserve") {
+        return convertVisual(file, onProgress);
+    }
+    return convertEditable(file, onProgress);
 }

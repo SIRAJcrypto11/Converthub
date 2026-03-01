@@ -4,14 +4,16 @@ import { useState } from "react";
 import { motion } from "framer-motion";
 import {
     FileDown, Plus, X, File as FileIcon, Loader2,
-    AlertCircle, FileText, CheckCircle2, BookOpen, Search, Cog
+    AlertCircle, FileText, CheckCircle2, BookOpen, Search, Cog,
+    Image as ImageIcon, Type
 } from "lucide-react";
 import { useDropzone } from "react-dropzone";
 import { cn } from "@/lib/utils";
-import { convertPdfToDocx, type ConversionProgress } from "@/lib/pdf-to-word-engine";
+import { convertPdfToDocx, type ConversionProgress, type ConversionMode } from "@/lib/pdf-to-word-engine";
 
 const stageIcons: Record<ConversionProgress["stage"], React.ReactNode> = {
     reading: <BookOpen className="w-4 h-4" />,
+    rendering: <ImageIcon className="w-4 h-4" />,
     analyzing: <Search className="w-4 h-4" />,
     building: <Cog className="w-4 h-4 animate-spin" />,
     complete: <CheckCircle2 className="w-4 h-4" />,
@@ -19,6 +21,7 @@ const stageIcons: Record<ConversionProgress["stage"], React.ReactNode> = {
 
 const stageLabels: Record<ConversionProgress["stage"], string> = {
     reading: "Reading PDF",
+    rendering: "Rendering Pages",
     analyzing: "Analyzing Layout",
     building: "Building Word Document",
     complete: "Complete",
@@ -27,6 +30,7 @@ const stageLabels: Record<ConversionProgress["stage"], string> = {
 export default function PdfToWordPage() {
     const [file, setFile] = useState<File | null>(null);
     const [isConverting, setIsConverting] = useState(false);
+    const [mode, setMode] = useState<ConversionMode>("preserve");
     const [progress, setProgress] = useState<ConversionProgress>({
         stage: "reading", percent: 0, message: "",
     });
@@ -56,7 +60,7 @@ export default function PdfToWordPage() {
         setSuccess(false);
 
         try {
-            const blob = await convertPdfToDocx(file, (p) => {
+            const blob = await convertPdfToDocx(file, mode, (p) => {
                 setProgress(p);
             });
 
@@ -116,6 +120,7 @@ export default function PdfToWordPage() {
                             <X className="w-6 h-6" />
                         </button>
 
+                        {/* File Info */}
                         <div className="flex items-center gap-8">
                             <div className="w-24 h-24 bg-blue-50 text-blue-600 rounded-[2rem] flex items-center justify-center shadow-inner">
                                 <FileIcon className="w-12 h-12" />
@@ -125,6 +130,58 @@ export default function PdfToWordPage() {
                                 <p className="text-[#5F6368] font-bold text-lg">{(file.size / 1024 / 1024).toFixed(2)} MB • Ready for Conversion</p>
                             </div>
                         </div>
+
+                        {/* Mode Selector */}
+                        {!isConverting && !success && (
+                            <div className="space-y-3">
+                                <p className="text-xs font-black uppercase tracking-widest text-[#5F6368] px-1">Conversion Mode</p>
+                                <div className="grid grid-cols-2 gap-4">
+                                    <button
+                                        onClick={() => setMode("preserve")}
+                                        className={cn(
+                                            "p-5 rounded-2xl border-2 text-left transition-all",
+                                            mode === "preserve"
+                                                ? "border-blue-500 bg-blue-50 shadow-lg shadow-blue-500/10"
+                                                : "border-[#DADCE0] hover:border-blue-300 hover:bg-blue-50/50"
+                                        )}
+                                    >
+                                        <div className="flex items-center gap-3 mb-2">
+                                            <ImageIcon className={cn("w-5 h-5", mode === "preserve" ? "text-blue-600" : "text-[#5F6368]")} />
+                                            <span className={cn("font-black text-sm", mode === "preserve" ? "text-blue-700" : "text-[#202124]")}>
+                                                Preserve Format
+                                            </span>
+                                        </div>
+                                        <p className="text-xs text-[#5F6368] leading-relaxed">
+                                            100% visual fidelity — looks identical to the original PDF. Best for documents with complex formatting.
+                                        </p>
+                                        {mode === "preserve" && (
+                                            <div className="mt-2 px-2 py-1 bg-blue-600 text-white text-[10px] font-black uppercase rounded-full inline-block tracking-wider">
+                                                Recommended
+                                            </div>
+                                        )}
+                                    </button>
+                                    <button
+                                        onClick={() => setMode("editable")}
+                                        className={cn(
+                                            "p-5 rounded-2xl border-2 text-left transition-all",
+                                            mode === "editable"
+                                                ? "border-blue-500 bg-blue-50 shadow-lg shadow-blue-500/10"
+                                                : "border-[#DADCE0] hover:border-blue-300 hover:bg-blue-50/50"
+                                        )}
+                                    >
+                                        <div className="flex items-center gap-3 mb-2">
+                                            <Type className={cn("w-5 h-5", mode === "editable" ? "text-blue-600" : "text-[#5F6368]")} />
+                                            <span className={cn("font-black text-sm", mode === "editable" ? "text-blue-700" : "text-[#202124]")}>
+                                                Editable Text
+                                            </span>
+                                        </div>
+                                        <p className="text-xs text-[#5F6368] leading-relaxed">
+                                            Extracts text for editing. Format may differ from original. Best for simple text documents.
+                                        </p>
+                                    </button>
+                                </div>
+                            </div>
+                        )}
 
                         {/* Multi-Stage Progress */}
                         {isConverting && (
@@ -148,6 +205,7 @@ export default function PdfToWordPage() {
                             </div>
                         )}
 
+                        {/* Success */}
                         {success && (
                             <motion.div
                                 initial={{ opacity: 0, y: 10 }}
@@ -157,11 +215,16 @@ export default function PdfToWordPage() {
                                 <CheckCircle2 className="w-8 h-8 flex-shrink-0" />
                                 <div>
                                     <p className="text-lg">Conversion Complete!</p>
-                                    <p className="text-sm font-medium opacity-80">Your editable Word file has been downloaded with formatting preserved.</p>
+                                    <p className="text-sm font-medium opacity-80">
+                                        {mode === "preserve"
+                                            ? "Your Word file has been downloaded — format perfectly preserved."
+                                            : "Your editable Word file has been downloaded."}
+                                    </p>
                                 </div>
                             </motion.div>
                         )}
 
+                        {/* Error */}
                         {error && (
                             <motion.div
                                 initial={{ opacity: 0, y: 10 }}
@@ -173,6 +236,7 @@ export default function PdfToWordPage() {
                             </motion.div>
                         )}
 
+                        {/* Convert Button */}
                         <button
                             onClick={convertToWord}
                             disabled={isConverting}
@@ -183,7 +247,9 @@ export default function PdfToWordPage() {
                         </button>
 
                         <p className="text-xs text-[#5F6368] text-center font-medium italic px-10">
-                            ConvertHub reconstructs your PDF's layout — preserving paragraphs, headings, bold, italic, and font sizes — for the cleanest Word output possible.
+                            {mode === "preserve"
+                                ? "Preserve Format renders each page as a high-resolution image inside Word — your document will look exactly like the original PDF."
+                                : "Editable Text extracts text content with formatting detection. Complex layouts may not be perfectly preserved."}
                         </p>
                     </motion.div>
                 )}
